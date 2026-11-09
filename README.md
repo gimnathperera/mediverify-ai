@@ -39,8 +39,9 @@ docker compose up --build
 | Reviewer                           | `reviewer@mediverify.test`    | `Reviewer#2026`   |
 | Second user (for isolation checks) | `second.user@mediverify.test` | `SecondUser#2026` |
 
-4. Upload `resources/primary_document_medical.pdf` (or the DOCX rendition `fixtures/sample_discharge.docx`) against
-   **MBMC Formulary Digest v8.2**.
+4. Upload `resources/primary_document_medical.pdf` against **MBMC Formulary Digest v8.2**. With a real key you can
+   also upload the DOCX rendition `fixtures/sample_discharge.docx`. In fixture mode the DOCX fails with
+   `FIXTURE_NOT_FOUND`, because fixtures exist only for the PDF's exact bytes.
 5. Watch the stages stream in, then open the citations.
 
 Compose starts these services:
@@ -209,7 +210,8 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
 
 - **Retryable errors:** network and 5xx errors, rate limits and timeouts. The job is requeued with exponential backoff
   (base 5 s) up to `max_attempts` (3). Completed stages are skipped on resume.
-- **Non-retryable errors:** for example `MODEL_NOT_CONFIGURED`, `PARSE_FAILED`, `FIXTURE_NOT_FOUND`, refusals and
+- **Non-retryable errors:** for example `MODEL_NOT_CONFIGURED`, `MODEL_QUOTA_EXCEEDED` (OpenAI 429
+  `insufficient_quota`: no credit left, unlike a plain rate limit), `PARSE_FAILED`, `FIXTURE_NOT_FOUND`, refusals and
   schema-invalid output after retries. The stage becomes `failed`, every later stage becomes `skipped`, and the job is
   marked `failed` with a sanitized message. The UI offers **Retry**, which creates a new job.
 - **Crashed or hung workers:**
@@ -360,7 +362,7 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 
 - Parsing and indexing: `PARSE_FAILED`, `UNSUPPORTED_DOCUMENT`, `CONVERSION_FAILED`, `REFERENCE_INDEX_FAILED`,
   `EMBEDDING_FAILED`.
-- Model: `MODEL_UNAVAILABLE`, `MODEL_NOT_CONFIGURED`, `MODEL_REFUSED`, `MODEL_OUTPUT_INVALID`,
+- Model: `MODEL_UNAVAILABLE`, `MODEL_NOT_CONFIGURED`, `MODEL_QUOTA_EXCEEDED`, `MODEL_REFUSED`, `MODEL_OUTPUT_INVALID`,
   `MODEL_OUTPUT_TRUNCATED`, `FIXTURE_NOT_FOUND`.
 - Runtime: `STAGE_TIMEOUT`, `WORKER_LOST`, `INTERNAL`.
 

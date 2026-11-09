@@ -92,6 +92,8 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
 - `LocalEmbeddingProvider` retries the first model download and never caches a failed load.
+- OpenAI 429 `insufficient_quota` → `MODEL_QUOTA_EXCEEDED` (non-retryable); other 429/5xx/network errors are retried.
+- Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.
 
 ## RAG & verification rules (do not weaken)
 
