@@ -37,6 +37,10 @@ import pino from 'pino';
 
 const args = process.argv.slice(2);
 const live = args.includes('--live');
+if (live && !process.env.OPENAI_API_KEY) {
+  console.error('eval --live needs OPENAI_API_KEY (set it in .env or the environment).');
+  process.exit(1);
+}
 const outIdx = args.indexOf('--out');
 const outFile = outIdx >= 0 ? args[outIdx + 1] : undefined;
 const K = Number(process.env.RETRIEVAL_TOP_K ?? 6);
@@ -181,7 +185,8 @@ try {
   const llm = createLlmProvider(
     {
       ...process.env,
-      LLM_PROVIDER: live ? 'openai' : (process.env.LLM_PROVIDER ?? 'fixture'),
+      // Deterministic by default, even if .env selects openai for the app; --live opts in.
+      LLM_PROVIDER: live ? 'openai' : 'fixture',
       LLM_FIXTURE_DIR: path.join(ROOT, 'fixtures/llm'),
     },
     log,
@@ -235,7 +240,8 @@ try {
   const perMed = golden.medications.map((g) => {
     const m = results?.medications.find((x) => x.drugName.toLowerCase() === g.drug.toLowerCase());
     const v = results?.verifications.find((x) => x.drugName.toLowerCase() === g.drug.toLowerCase());
-    const conflicts = v?.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field) ?? [];
+    const conflicts: string[] =
+      v?.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field) ?? [];
     return {
       drug: g.drug,
       expectedStatus: g.status,

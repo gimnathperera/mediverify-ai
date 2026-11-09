@@ -28,8 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm exec tsc -p tsconfig.json
+      - run: pnpm typecheck # packages + root scripts/tests
 
   test:
     name: Unit + integration tests
@@ -102,6 +101,9 @@ jobs:
   security:
     name: Dependency audit + secret scan
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read # gitleaks-action lists the PR's commits on pull_request events
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
