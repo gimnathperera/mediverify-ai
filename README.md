@@ -425,7 +425,9 @@ The integration tests break down as follows:
   - `commit-msg`: commitlint (Conventional Commits).
   - `pre-push`: typecheck + unit tests.
 
-  The hooks install via `prepare` and activate once the folder is a git repository (`git init && pnpm install`).
+  `pnpm install` installs the hooks through `prepare`, but only inside a git repository. If you ran `pnpm install`
+  before `git init` (or hooks don't fire), run `pnpm exec husky` once. `git config core.hooksPath` should then print
+  `.husky/_`.
 
 **CI/CD** (`.github/workflows/`):
 

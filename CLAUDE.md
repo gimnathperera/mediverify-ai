@@ -59,7 +59,8 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   Never log passwords, tokens, cookies, API keys, raw document text or full patient quotes (log lengths/hashes/ids).
 - Formatting: Prettier (single quotes, 100 cols). ESLint flat config incl. `no-floating-promises`, react-hooks, jsx-a11y.
 - Commits: Conventional Commits (commitlint). Husky: pre-commit = lint-staged + secret guard; pre-push = typecheck + unit tests.
-  Hooks activate only once the user runs `git init` (`prepare: husky || true`). **Do not commit/push unless the user asks.**
+  Hooks install via `prepare: husky || true` only inside a git repo; if `git config core.hooksPath` is not `.husky/_`,
+  run `pnpm exec husky`. **Do not commit/push unless the user asks.**
 - Keep `docs/implementation-plan.md` (checklist/progress/risks) and this file updated as decisions change.
 
 ## Architecture decisions
