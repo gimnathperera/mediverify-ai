@@ -1,0 +1,10 @@
+packages:
+  - apps/*
+  - packages/*
+onlyBuiltDependencies:
+  - '@swc/core'
+  - esbuild
+  - onnxruntime-node
+  - protobufjs
+  - sharp
+  - '@node-rs/argon2'

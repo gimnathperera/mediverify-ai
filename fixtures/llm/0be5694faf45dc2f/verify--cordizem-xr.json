@@ -1,0 +1,68 @@
+{
+  "overall_explanation": "Prescribed 100 mg at initiation, but the monograph's standard dose is 50 mg with 25 mg increments no more often than every two weeks.",
+  "fields": [
+    {
+      "field": "dose",
+      "verdict": "conflict",
+      "prescribed": "100 mg (new start)",
+      "reference_constraint": "Standard 50 mg once daily; titrate by 25 mg at intervals of no less than two weeks",
+      "explanation": "A new start at 100 mg skips the 50 mg standard dose and the titration schedule; being under the 200 mg maximum does not make it consistent.",
+      "passage_id": "P1",
+      "quote": "50 mg orally once daily, taken in the morning. May be titrated upward in increments of 25 mg at intervals of no less than two weeks based on heart rate response and blood pressure."
+    },
+    {
+      "field": "unit",
+      "verdict": "consistent",
+      "prescribed": "mg",
+      "reference_constraint": "mg",
+      "explanation": "Unit matches.",
+      "passage_id": "P1",
+      "quote": "50 mg orally once daily, taken in the morning."
+    },
+    {
+      "field": "route",
+      "verdict": "consistent",
+      "prescribed": "PO",
+      "reference_constraint": "orally",
+      "explanation": "Oral route matches.",
+      "passage_id": "P1",
+      "quote": "50 mg orally once daily, taken in the morning."
+    },
+    {
+      "field": "frequency",
+      "verdict": "consistent",
+      "prescribed": "once daily",
+      "reference_constraint": "once daily",
+      "explanation": "Frequency matches.",
+      "passage_id": "P1",
+      "quote": "50 mg orally once daily, taken in the morning."
+    },
+    {
+      "field": "timing",
+      "verdict": "consistent",
+      "prescribed": "in the morning",
+      "reference_constraint": "taken in the morning",
+      "explanation": "Morning administration matches.",
+      "passage_id": "P1",
+      "quote": "50 mg orally once daily, taken in the morning."
+    },
+    {
+      "field": "duration",
+      "verdict": "not_addressed",
+      "prescribed": "Continue indefinitely",
+      "reference_constraint": null,
+      "explanation": "The monograph sets no duration limit.",
+      "passage_id": null,
+      "quote": null
+    },
+    {
+      "field": "indication",
+      "verdict": "consistent",
+      "prescribed": "Rate control, hypertension",
+      "reference_constraint": "Rate control in atrial fibrillation; second-line antihypertensive with concurrent need for rate control",
+      "explanation": "Atrial fibrillation rate control with concurrent hypertension matches the monograph indications.",
+      "passage_id": "P2",
+      "quote": "Rate control in atrial fibrillation and atrial flutter."
+    }
+  ]
+}

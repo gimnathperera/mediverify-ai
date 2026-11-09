@@ -1,0 +1,68 @@
+{
+  "overall_explanation": "Dose and frequency match, but the intended 8-week course exceeds the monograph's 4-week maximum duration.",
+  "fields": [
+    {
+      "field": "dose",
+      "verdict": "consistent",
+      "prescribed": "0.5 mg",
+      "reference_constraint": "0.5 mg orally twice daily",
+      "explanation": "Dose equals the standard adult dose.",
+      "passage_id": "P1",
+      "quote": "0.5 mg orally twice daily."
+    },
+    {
+      "field": "unit",
+      "verdict": "consistent",
+      "prescribed": "mg",
+      "reference_constraint": "mg",
+      "explanation": "Unit matches.",
+      "passage_id": "P1",
+      "quote": "0.5 mg orally twice daily."
+    },
+    {
+      "field": "route",
+      "verdict": "consistent",
+      "prescribed": "PO",
+      "reference_constraint": "orally",
+      "explanation": "Oral route matches.",
+      "passage_id": "P1",
+      "quote": "0.5 mg orally twice daily."
+    },
+    {
+      "field": "frequency",
+      "verdict": "consistent",
+      "prescribed": "twice daily",
+      "reference_constraint": "twice daily",
+      "explanation": "Frequency matches.",
+      "passage_id": "P1",
+      "quote": "0.5 mg orally twice daily."
+    },
+    {
+      "field": "timing",
+      "verdict": "not_addressed",
+      "prescribed": null,
+      "reference_constraint": null,
+      "explanation": "The monograph does not specify administration timing.",
+      "passage_id": null,
+      "quote": null
+    },
+    {
+      "field": "duration",
+      "verdict": "conflict",
+      "prescribed": "8 weeks",
+      "reference_constraint": "no more than 4 weeks",
+      "explanation": "An intended 8-week course exceeds the 4-week limit for initiation.",
+      "passage_id": "P2",
+      "quote": "Prescribers must not initiate Etrazolam with an intended duration beyond 4 weeks."
+    },
+    {
+      "field": "indication",
+      "verdict": "consistent",
+      "prescribed": "Acute anxiety, sleep disturbance",
+      "reference_constraint": "Short-term management of acute/situational anxiety and anxiety-related insomnia",
+      "explanation": "Situational anxiety with sleep disturbance matches the indication.",
+      "passage_id": "P3",
+      "quote": "Short-term management of acute anxiety, situational anxiety, and selected cases of insomnia secondary to anxiety."
+    }
+  ]
+}

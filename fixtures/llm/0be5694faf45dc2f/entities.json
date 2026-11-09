@@ -1,0 +1,102 @@
+{
+  "medications": [
+    {
+      "drug_name": "Velantine",
+      "dose_raw": "10 mg",
+      "dose_value": 10,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "once daily",
+      "timing_raw": null,
+      "duration_raw": "Continue indefinitely",
+      "indication": "Hypertension",
+      "is_new_start": true,
+      "new_start_evidence": "Velantine was selected as first-line antihypertensive given the patient's good renal function and absence of contraindications.",
+      "source_page": 3,
+      "source_quote": "Velantine 10 mg PO once daily Continue indefinitely Hypertension",
+      "ambiguities": []
+    },
+    {
+      "drug_name": "Cordizem-XR",
+      "dose_raw": "100 mg",
+      "dose_value": 100,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "once daily",
+      "timing_raw": "in the morning",
+      "duration_raw": "Continue indefinitely",
+      "indication": "Rate control, hypertension",
+      "is_new_start": true,
+      "new_start_evidence": "Cordizem-XR was added for rate control of the atrial fibrillation.",
+      "source_page": 3,
+      "source_quote": "Cordizem-XR 100 mg PO once daily Continue indefinitely Rate control, hypertension",
+      "ambiguities": []
+    },
+    {
+      "drug_name": "Pravoxil",
+      "dose_raw": "20 mg",
+      "dose_value": 20,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "every morning",
+      "timing_raw": "every morning",
+      "duration_raw": "Continue indefinitely",
+      "indication": "Hyperlipidemia",
+      "is_new_start": true,
+      "new_start_evidence": "Pravoxil was prescribed for hyperlipidemia management given the patient's elevated LDL on admission labs.",
+      "source_page": 3,
+      "source_quote": "Pravoxil 20 mg PO every morning Continue indefinitely Hyperlipidemia",
+      "ambiguities": []
+    },
+    {
+      "drug_name": "Etrazolam",
+      "dose_raw": "0.5 mg",
+      "dose_value": 0.5,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "twice daily",
+      "timing_raw": null,
+      "duration_raw": "8 weeks",
+      "indication": "Acute anxiety, sleep disturbance",
+      "is_new_start": true,
+      "new_start_evidence": "a short course of anxiolytic therapy was recommended.",
+      "source_page": 3,
+      "source_quote": "Etrazolam 0.5 mg PO twice daily 8 weeks Acute anxiety, sleep disturbance",
+      "ambiguities": [
+        "Psychiatry reassessment is stated as 'in two weeks' (p.3, p.5 follow-up) and 'at the 8-week mark' (p.5 counseling)."
+      ]
+    },
+    {
+      "drug_name": "Pranixol",
+      "dose_raw": "10 mg",
+      "dose_value": 10,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "once daily",
+      "timing_raw": "at the same time each day",
+      "duration_raw": "Continue indefinitely",
+      "indication": "Adjunctive cardiovascular protection",
+      "is_new_start": true,
+      "new_start_evidence": "Pranixol was added per cardiology recommendation for adjunctive cardiovascular protection.",
+      "source_page": 3,
+      "source_quote": "Pranixol 10 mg PO once daily Continue indefinitely Adjunctive cardiovascular protection",
+      "ambiguities": []
+    },
+    {
+      "drug_name": "Quintaxin",
+      "dose_raw": "20 mg",
+      "dose_value": 20,
+      "dose_unit": "mg",
+      "route_raw": "PO",
+      "frequency_raw": "once daily, before breakfast",
+      "timing_raw": "thirty minutes before breakfast",
+      "duration_raw": "8 weeks, reassess",
+      "indication": "GERD prophylaxis",
+      "is_new_start": true,
+      "new_start_evidence": "Quintaxin was added for GERD prophylaxis given the multi-drug regimen and the patient's reported intermittent heartburn.",
+      "source_page": 3,
+      "source_quote": "Quintaxin 20 mg PO once daily, before breakfast 8 weeks, reassess GERD prophylaxis",
+      "ambiguities": []
+    }
+  ]
+}

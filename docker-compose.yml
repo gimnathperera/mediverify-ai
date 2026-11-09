@@ -1,0 +1,101 @@
+name: mediverify
+
+x-node-env: &node-env
+  DATABASE_URL: postgres://mediverify:mediverify@db:5432/mediverify
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+x-llm-env: &llm-env
+  LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+  OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: mediverify
+      POSTGRES_PASSWORD: mediverify
+      POSTGRES_DB: mediverify
+    ports:
+      - '${DB_HOST_PORT:-55432}:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mediverify -d mediverify']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # One-shot: versioned migrations + idempotent seed (demo users, reference document registration).
+  migrate:
+    build: { context: ., dockerfile: docker/node.Dockerfile, target: api }
+    command: ['sh', '-c', 'node scripts/dist/migrate.js && node scripts/dist/seed.js']
+    environment:
+      <<: *node-env
+      SEED_USER_EMAIL: ${SEED_USER_EMAIL:-reviewer@mediverify.test}
+      SEED_USER_PASSWORD: ${SEED_USER_PASSWORD:-Reviewer#2026}
+      SEED_USER2_EMAIL: ${SEED_USER2_EMAIL:-second.user@mediverify.test}
+      SEED_USER2_PASSWORD: ${SEED_USER2_PASSWORD:-SecondUser#2026}
+    depends_on:
+      db: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    build: { context: ., dockerfile: docker/node.Dockerfile, target: api }
+    environment:
+      <<: [*node-env, *llm-env]
+      PORT: 3000
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8088}
+      DUPLICATE_WINDOW_SECONDS: ${DUPLICATE_WINDOW_SECONDS:-300}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  worker:
+    build: { context: ., dockerfile: docker/node.Dockerfile, target: worker }
+    environment:
+      <<: [*node-env, *llm-env]
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Xenova/bge-small-en-v1.5}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-6}
+      RETRIEVAL_MIN_SCORE: ${RETRIEVAL_MIN_SCORE:-0.35}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "const s=require('fs').statSync('/tmp/worker.heartbeat');process.exit(Date.now()-s.mtimeMs<30000?0:1)"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 90s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  web:
+    build: { context: ., dockerfile: docker/web.Dockerfile }
+    ports:
+      - '${WEB_PORT:-8088}:80'
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/healthz']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db-data:

@@ -1,0 +1,68 @@
+{
+  "overall_explanation": "Dose, timing before breakfast, and the 8-week reassessment all match the Quintaxin monograph.",
+  "fields": [
+    {
+      "field": "dose",
+      "verdict": "consistent",
+      "prescribed": "20 mg",
+      "reference_constraint": "20 mg orally once daily",
+      "explanation": "Dose equals the standard adult dose.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, taken 30 minutes before breakfast."
+    },
+    {
+      "field": "unit",
+      "verdict": "consistent",
+      "prescribed": "mg",
+      "reference_constraint": "mg",
+      "explanation": "Unit matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, taken 30 minutes before breakfast."
+    },
+    {
+      "field": "route",
+      "verdict": "consistent",
+      "prescribed": "PO",
+      "reference_constraint": "orally",
+      "explanation": "Oral route matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, taken 30 minutes before breakfast."
+    },
+    {
+      "field": "frequency",
+      "verdict": "consistent",
+      "prescribed": "once daily",
+      "reference_constraint": "once daily",
+      "explanation": "Frequency matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, taken 30 minutes before breakfast."
+    },
+    {
+      "field": "timing",
+      "verdict": "consistent",
+      "prescribed": "before breakfast",
+      "reference_constraint": "30 minutes before breakfast",
+      "explanation": "Before-breakfast dosing matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, taken 30 minutes before breakfast."
+    },
+    {
+      "field": "duration",
+      "verdict": "consistent",
+      "prescribed": "8 weeks, reassess",
+      "reference_constraint": "indication reviewed at 8 weeks",
+      "explanation": "Reassessment at 8 weeks matches the monograph.",
+      "passage_id": "P2",
+      "quote": "Patients prescribed Quintaxin for prophylaxis should have the indication reviewed at 8 weeks; continuation beyond this point requires affirmative clinical justification."
+    },
+    {
+      "field": "indication",
+      "verdict": "consistent",
+      "prescribed": "GERD prophylaxis",
+      "reference_constraint": "Prophylaxis on multi-drug regimens",
+      "explanation": "GERD prophylaxis on a multi-drug regimen matches.",
+      "passage_id": "P3",
+      "quote": "Also used as prophylaxis in patients on multi-drug regimens with elevated risk of medication-induced gastritis."
+    }
+  ]
+}

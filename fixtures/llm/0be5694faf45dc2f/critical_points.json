@@ -1,0 +1,180 @@
+{
+  "points": [
+    {
+      "category": "serious_side_effect",
+      "severity": "high",
+      "related_medication": "Pravoxil",
+      "text": "Report any unexplained muscle pain or weakness immediately while taking Pravoxil — it may indicate a serious side effect.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was advised to report any unexplained muscle pain or weakness immediately, as this may indicate a serious side effect."
+        }
+      ]
+    },
+    {
+      "category": "document_discrepancy",
+      "severity": "high",
+      "related_medication": "Etrazolam",
+      "text": "The document gives two different times for the psychiatry reassessment: in two weeks, and at the 8-week mark.",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "was given a follow-up appointment with outpatient psychiatry in two weeks for reassessment"
+        },
+        {
+          "page": 5,
+          "quote": "with outpatient psychiatry follow-up scheduled at the 8-week mark to evaluate response and consider continuation"
+        }
+      ]
+    },
+    {
+      "category": "safety_precaution",
+      "severity": "high",
+      "related_medication": "Etrazolam",
+      "text": "Etrazolam may cause drowsiness: do not drive or operate heavy machinery until you know how it affects you.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "he should not drive or operate heavy machinery until he understands how the medication affects him"
+        }
+      ]
+    },
+    {
+      "category": "administration_timing",
+      "severity": "medium",
+      "related_medication": "Pravoxil",
+      "text": "The document instructs taking Pravoxil in the morning with breakfast.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Pravoxil should be taken in the morning with breakfast for best tolerability."
+        }
+      ]
+    },
+    {
+      "category": "administration_timing",
+      "severity": "medium",
+      "related_medication": "Quintaxin",
+      "text": "Take Quintaxin thirty minutes before breakfast.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Quintaxin should be taken thirty minutes before breakfast for optimal effect."
+        }
+      ]
+    },
+    {
+      "category": "administration_timing",
+      "severity": "medium",
+      "related_medication": "Cordizem-XR",
+      "text": "Take Cordizem-XR consistently in the morning.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was counseled to take the medication consistently in the morning and not to discontinue abruptly."
+        }
+      ]
+    },
+    {
+      "category": "safety_precaution",
+      "severity": "medium",
+      "related_medication": "Cordizem-XR",
+      "text": "Do not stop Cordizem-XR abruptly.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was counseled to take the medication consistently in the morning and not to discontinue abruptly."
+        }
+      ]
+    },
+    {
+      "category": "duration_limit",
+      "severity": "medium",
+      "related_medication": "Etrazolam",
+      "text": "Etrazolam is intended for short-term use; an 8-week course was discussed.",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "the patient was counseled that this medication is intended for short-term use"
+        },
+        {
+          "page": 5,
+          "quote": "The 8-week course was discussed with the patient"
+        }
+      ]
+    },
+    {
+      "category": "duration_limit",
+      "severity": "medium",
+      "related_medication": "Quintaxin",
+      "text": "Quintaxin is prescribed for 8 weeks, then reassessed.",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "Quintaxin 20 mg PO once daily, before breakfast 8 weeks, reassess GERD prophylaxis"
+        }
+      ]
+    },
+    {
+      "category": "serious_side_effect",
+      "severity": "medium",
+      "related_medication": "Velantine",
+      "text": "Report a persistent dry cough if it develops while taking Velantine.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Velantine may cause a persistent dry cough; the patient should report this if it develops."
+        }
+      ]
+    },
+    {
+      "category": "follow_up",
+      "severity": "medium",
+      "related_medication": null,
+      "text": "Follow up with primary care within seven days, cardiology within two weeks, and outpatient psychiatry within two weeks.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was instructed to follow up with primary care within seven days of discharge, with cardiology within two weeks, and with outpatient psychiatry within two weeks for medication reassessment."
+        }
+      ]
+    },
+    {
+      "category": "follow_up",
+      "severity": "medium",
+      "related_medication": "Pravoxil",
+      "text": "Repeat lipid panel six weeks after discharge.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "A repeat lipid panel was ordered for six weeks post-discharge to assess response to Pravoxil."
+        }
+      ]
+    },
+    {
+      "category": "follow_up",
+      "severity": "medium",
+      "related_medication": "Velantine",
+      "text": "Basic metabolic panel two weeks after discharge to check kidney function on the new blood-pressure medicines.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "A basic metabolic panel was ordered for two weeks post-discharge to assess renal function on the new antihypertensive regimen."
+        }
+      ]
+    },
+    {
+      "category": "other",
+      "severity": "low",
+      "related_medication": "Cordizem-XR",
+      "text": "Cordizem-XR may cause fatigue, especially in the first one to two weeks.",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Cordizem-XR may cause fatigue, particularly in the first one to two weeks."
+        }
+      ]
+    }
+  ]
+}

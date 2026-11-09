@@ -1,0 +1,25 @@
+{
+  "name": "@mediverify/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "@mediverify/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
+  },
+  "dependencies": {
+    "@mediverify/shared": "workspace:*",
+    "pg": "8.23.1",
+    "pgvector": "0.3.1"
+  }
+}

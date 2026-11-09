@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+pnpm-lock.yaml
+resources
+fixtures/llm
+playwright-report
+test-results
+.model-cache
+*.pdf
+*.docx

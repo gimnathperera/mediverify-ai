@@ -1,0 +1,68 @@
+{
+  "overall_explanation": "Dose matches, but the monograph requires bedtime administration and the prescription says every morning.",
+  "fields": [
+    {
+      "field": "dose",
+      "verdict": "consistent",
+      "prescribed": "20 mg",
+      "reference_constraint": "20 mg orally once daily, at bedtime",
+      "explanation": "Dose equals the standard adult dose.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, at bedtime."
+    },
+    {
+      "field": "unit",
+      "verdict": "consistent",
+      "prescribed": "mg",
+      "reference_constraint": "mg",
+      "explanation": "Unit matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, at bedtime."
+    },
+    {
+      "field": "route",
+      "verdict": "consistent",
+      "prescribed": "PO",
+      "reference_constraint": "orally",
+      "explanation": "Oral route matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, at bedtime."
+    },
+    {
+      "field": "frequency",
+      "verdict": "consistent",
+      "prescribed": "every morning (once daily)",
+      "reference_constraint": "once daily",
+      "explanation": "Once-daily frequency matches.",
+      "passage_id": "P1",
+      "quote": "20 mg orally once daily, at bedtime."
+    },
+    {
+      "field": "timing",
+      "verdict": "conflict",
+      "prescribed": "every morning",
+      "reference_constraint": "at bedtime, not in the morning",
+      "explanation": "The monograph requires bedtime dosing and states morning administration substantially reduces effect.",
+      "passage_id": "P3",
+      "quote": "Patients should be counseled to take Pravoxil at bedtime, not in the morning."
+    },
+    {
+      "field": "duration",
+      "verdict": "not_addressed",
+      "prescribed": "Continue indefinitely",
+      "reference_constraint": null,
+      "explanation": "The monograph sets no duration limit.",
+      "passage_id": null,
+      "quote": null
+    },
+    {
+      "field": "indication",
+      "verdict": "consistent",
+      "prescribed": "Hyperlipidemia",
+      "reference_constraint": "Prevention of ASCVD with elevated LDL",
+      "explanation": "Elevated LDL is within the monograph indication.",
+      "passage_id": "P2",
+      "quote": "Primary and secondary prevention of atherosclerotic cardiovascular disease in patients with elevated LDL cholesterol or established cardiovascular disease."
+    }
+  ]
+}

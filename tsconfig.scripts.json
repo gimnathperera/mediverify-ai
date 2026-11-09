@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false,
+    "rootDir": "scripts",
+    "outDir": "scripts/dist",
+    "customConditions": [],
+    "types": ["node"]
+  },
+  "include": ["scripts/migrate.ts", "scripts/seed.ts"]
+}
