@@ -28,8 +28,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm format:check
       - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm exec tsc -p tsconfig.json
+      - run: pnpm typecheck # packages + root scripts/tests
 
   test:
     name: Unit + integration tests
