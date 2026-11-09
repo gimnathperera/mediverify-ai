@@ -15,7 +15,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@huggingface/transformers": "3.8.1",
+    "@huggingface/transformers": "4.3.2",
     "@mediverify/db": "workspace:*",
     "@mediverify/shared": "workspace:*",
     "mammoth": "^1.13.0",
