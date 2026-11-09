@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Multi-stage image for the NestJS API (target: api) and the pipeline worker (target: worker).
 
-FROM node:24-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
 RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
 WORKDIR /app
