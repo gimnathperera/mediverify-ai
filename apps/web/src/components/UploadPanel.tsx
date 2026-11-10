@@ -42,6 +42,7 @@ export function UploadPanel({
 }) {
   const inputId = useId();
   const selectId = useId();
+  const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function UploadPanel({
   return (
     <Card className="p-5">
       <h2 className="font-semibold text-slate-900">Verify a discharge document</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-600">
         Upload the primary document; it is verified against the selected institutional reference.
       </p>
 
@@ -92,7 +93,7 @@ export function UploadPanel({
           ))}
         </select>
         {ref && (
-          <p className="flex items-center gap-1 text-xs text-slate-500">
+          <p className="flex items-center gap-1 text-xs text-slate-600">
             <Info className="h-3.5 w-3.5" aria-hidden />
             {ref.indexStatus === 'ready'
               ? `Indexed: ${ref.monographCount} monographs`
@@ -101,11 +102,19 @@ export function UploadPanel({
         )}
       </div>
 
+      {/* The whole zone accepts clicks and drops; the button is the keyboard entry point. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         className={cn(
-          'mt-4 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-          drag ? 'border-brand-600 bg-brand-50' : 'border-slate-300 bg-slate-50',
+          'mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors focus-within:border-brand-600 motion-reduce:transition-none',
+          drag
+            ? 'border-brand-600 bg-brand-50'
+            : 'border-slate-300 bg-slate-50 hover:border-slate-400',
+          (!refId || busy) && 'cursor-not-allowed opacity-70',
         )}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && refId && !busy) inputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDrag(true);
@@ -121,10 +130,15 @@ export function UploadPanel({
         <p className="text-sm text-slate-700">
           Drag &amp; drop a <strong>PDF</strong> or <strong>DOCX</strong> here
         </p>
-        <p className="text-xs text-slate-500">Max {formatBytes(MAX_UPLOAD_BYTES)}</p>
+        <p className="text-xs text-slate-600">
+          Max {formatBytes(MAX_UPLOAD_BYTES)} · processed in the background, so you can leave the
+          page
+        </p>
         <input
           ref={inputRef}
           id={inputId}
+          aria-label="Choose a PDF or DOCX file to verify"
+          tabIndex={-1}
           type="file"
           accept={`.pdf,.docx,${PDF_MIME},${DOCX_MIME}`}
           className="sr-only"
@@ -134,6 +148,7 @@ export function UploadPanel({
         <Button
           type="button"
           variant="outline"
+          aria-describedby={error ? errorId : undefined}
           onClick={() => inputRef.current?.click()}
           loading={busy}
           disabled={!refId}
@@ -142,9 +157,11 @@ export function UploadPanel({
         </Button>
       </div>
       {error && (
-        <Alert tone="danger" title="File rejected" className="mt-3">
-          {error}
-        </Alert>
+        <div id={errorId} className="mt-3">
+          <Alert tone="danger" title="File rejected">
+            {error}
+          </Alert>
+        </div>
       )}
     </Card>
   );

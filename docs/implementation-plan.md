@@ -89,6 +89,14 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   an LLM-only indication conflict needs exclusion language. New eval metric: discrepancy preserved. Final run: all
   metrics 100%.
 
+- 2026-11-10 (frontend quality): Vitest `web` project (jsdom + Testing Library + MSW + axe-core) with 47 component tests
+  over pages, results, upload, auth, SSE progress and the error boundary; Playwright axe scan (WCAG 2.1 AA incl.
+  contrast) on every page. The scans found and fixed: unlabeled file input, label/name mismatches, low-contrast
+  text and toasts, an unfocusable scroll region, a colour-only inline link. UX: results split into focused
+  components; status tiles filter; critical point → verification jump with focus; accessible mobile tabs; document
+  search + status filter; per-page titles; skip link; live progress announcements; honest fixture badge; per-route
+  error boundary; route-level code splitting (entry 572 → 479 KB); gzip bundle budget in CI. Coverage 57.6% → 83.8%.
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).

@@ -463,16 +463,18 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 ## Testing and quality
 
 ```bash
-pnpm test:unit          # 44 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
+pnpm test:unit          # 38 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
                         #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
-                        #           injection, error classification, bounded concurrency, dependency pins, and the web
-                        #           app's live-progress reducer and upload validation
+                        #           injection, error classification, bounded concurrency, dependency pins
+pnpm test:web           # 47 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
 pnpm test:integration   # 42 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
-pnpm test:coverage      # both, with v8 coverage and thresholds (CI publishes the summary and HTML report)
-pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode
+pnpm test:coverage      # all three, with v8 coverage and thresholds (CI publishes the summary and HTML report)
+pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode:
+                        #   reviewer flow + axe WCAG 2.1 AA scan of every page (incl. colour contrast)
+pnpm size               # build the web app and enforce gzip bundle budgets
 pnpm eval               # retrieval + classification evaluation → numbers in docs/evaluation.md
 pnpm eval:live          # same with real OpenAI (needs OPENAI_API_KEY)
-pnpm run ci             # format:check + lint + typecheck + unit + integration (mirrors GitHub Actions)
+pnpm run ci             # format:check + lint + typecheck + unit + web + integration (mirrors GitHub Actions)
                         # (`pnpm ci` without `run` is a built-in pnpm command, not this script)
 ```
 
@@ -488,18 +490,31 @@ The integration tests break down as follows:
   reaper, and zombie-lease protection.
 - **Deployment limits (2):** sign-up disabled, per-user daily run budget (duplicates free, retries counted).
 
-Coverage (unit + integration, 2026-11-10): 57.6% statements, 77.5% branches, 72.4% functions. Server-side code is
-well covered; React components are covered only by the Playwright smoke test, which is the main gap.
+The **web tests** (`apps/web/test`) render real components with the app's providers. The API is mocked with MSW,
+using responses captured from a fixture-mode run of the bundled sample, so the DTO shapes match the server exactly. They cover:
+
+- upload validation and drag-and-drop
+- the document list's search, filters, empty, error and retry states, and optimistic upload with rollback
+- results grouping, status filters, citation sheet, critical-point → verification jump with focus, and medications table
+- failed-job messages and retry; live SSE progress with replay de-duplication
+- sign-in errors linked to fields; disabled sign-up; route protection; the per-route error boundary
+
+Each page also runs an axe-core check. Colour contrast needs real layout, so it is checked in Playwright instead
+(`tests/e2e/a11y.spec.ts`).
+
+Coverage (unit + web + integration, 2026-11-10): 83.8% statements, 80.6% branches, 85.9% functions (web app alone:
+84.9% statements). It was 57.6% before the component tests; the thresholds in `vitest.config.ts` were raised to match.
 
 **Tooling.**
 
 - TypeScript strict (`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
-- ESLint flat config, type-aware, with `no-floating-promises`, import order, react-hooks and jsx-a11y.
+- ESLint flat config, type-aware, with `no-floating-promises`, import order, react-hooks, jsx-a11y and
+  testing-library (component tests query by role and label, not DOM structure).
 - Prettier.
 - Husky hooks:
   - `pre-commit`: lint-staged + secret guard.
   - `commit-msg`: commitlint (Conventional Commits).
-  - `pre-push`: typecheck + unit tests.
+  - `pre-push`: typecheck + unit + web tests.
 
   `pnpm install` installs the hooks through `prepare`, but only inside a git repository. If you ran `pnpm install`
   before `git init` (or hooks don't fire), run `pnpm exec husky` once. `git config core.hooksPath` should then print
@@ -508,17 +523,18 @@ well covered; React components are covered only by the Playwright smoke test, wh
 **CI/CD** (`.github/workflows/`):
 
 - `ci.yml` runs these jobs:
-  - quality
-  - test, with a pgvector service and the eval report as an artifact
-  - compose build + Playwright E2E
+  - quality, including the web bundle-size budget
+  - test (unit, web, integration with coverage), with a pgvector service and the eval report as an artifact
+  - compose build + Playwright E2E and accessibility scan
   - security (`pnpm audit` + gitleaks)
   - a manual `eval-live` job gated on the `OPENAI_API_KEY` secret
 - `release.yml` builds images on `v*` tags and pushes to GHCR only when the `PUBLISH_IMAGES` variable is enabled.
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 46 unit, 42 integration and 4
-> Playwright tests pass (coverage thresholds enforced). Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 38 unit, 47 web, 42 integration and
+> 6 Playwright tests (smoke + accessibility, desktop + Pixel 7) pass, with coverage thresholds enforced. The new web
+> tests, accessibility scan and bundle budget have not run in GitHub Actions yet. Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
 > the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.

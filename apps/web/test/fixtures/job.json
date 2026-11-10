@@ -1,0 +1,105 @@
+{
+  "id": "18a98268-86c1-4da8-84d5-f2bdc7e83b13",
+  "documentId": "d7364bdb-5eaf-4e3b-8c84-29459d67b262",
+  "status": "completed",
+  "currentStage": "done",
+  "attempts": 1,
+  "maxAttempts": 3,
+  "errorCode": null,
+  "errorMessage": null,
+  "createdAt": "2026-11-10T15:26:34.085Z",
+  "startedAt": "2026-11-10T15:26:34.110Z",
+  "finishedAt": "2026-11-10T15:26:37.101Z",
+  "lastEventId": "571",
+  "llmProvider": "fixture",
+  "stages": [
+    {
+      "stage": "parsed",
+      "ordinal": 1,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:34.125Z",
+      "finishedAt": "2026-11-10T15:26:36.060Z",
+      "durationMs": 1935,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "5 page(s), 37 blocks, 1 table(s) with 6 row(s)"
+    },
+    {
+      "stage": "chunked",
+      "ordinal": 2,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.071Z",
+      "finishedAt": "2026-11-10T15:26:36.095Z",
+      "durationMs": 25,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "42 primary chunks; reference index reused (8 monographs, 100 chunks)"
+    },
+    {
+      "stage": "embedded",
+      "ordinal": 3,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.129Z",
+      "finishedAt": "2026-11-10T15:26:36.853Z",
+      "durationMs": 724,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "34 primary chunks embedded with Xenova/bge-small-en-v1.5; reference embeddings reused from index (Xenova/bge-small-en-v1.5)"
+    },
+    {
+      "stage": "summarized",
+      "ordinal": 4,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.887Z",
+      "finishedAt": "2026-11-10T15:26:36.894Z",
+      "durationMs": 7,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "171 words"
+    },
+    {
+      "stage": "key_points_extracted",
+      "ordinal": 5,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.898Z",
+      "finishedAt": "2026-11-10T15:26:36.906Z",
+      "durationMs": 8,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "14 critical point(s)"
+    },
+    {
+      "stage": "entities_extracted",
+      "ordinal": 6,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.917Z",
+      "finishedAt": "2026-11-10T15:26:36.924Z",
+      "durationMs": 7,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "6 medication(s) extracted"
+    },
+    {
+      "stage": "verified",
+      "ordinal": 7,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:36.931Z",
+      "finishedAt": "2026-11-10T15:26:37.067Z",
+      "durationMs": 136,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "2 supported, 3 contradicted, 1 unsupported"
+    },
+    {
+      "stage": "done",
+      "ordinal": 8,
+      "status": "completed",
+      "startedAt": "2026-11-10T15:26:37.096Z",
+      "finishedAt": "2026-11-10T15:26:37.101Z",
+      "durationMs": 4,
+      "errorCode": null,
+      "errorMessage": null,
+      "detail": "Pipeline complete"
+    }
+  ]
+}

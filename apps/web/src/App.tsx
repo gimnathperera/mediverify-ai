@@ -1,14 +1,27 @@
-import type * as React from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 
 import { AppShell } from './components/AppShell';
+import { RouteErrorBoundary } from './components/ErrorBoundary';
 import { Alert, Spinner } from './components/ui/primitives';
 import { useMe } from './lib/queries';
 import { AuthPage } from './pages/AuthPage';
-import { DocumentPage } from './pages/DocumentPage';
-import { DocumentsPage } from './pages/DocumentsPage';
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+// Signed-in pages are split out of the entry bundle; the sign-in page stays eager for first paint.
+const DocumentsPage = lazy(() =>
+  import('./pages/DocumentsPage').then((m) => ({ default: m.DocumentsPage })),
+);
+const DocumentPage = lazy(() =>
+  import('./pages/DocumentPage').then((m) => ({ default: m.DocumentPage })),
+);
+
+const PageFallback = () => (
+  <div className="flex justify-center py-16">
+    <Spinner label="Loading page…" />
+  </div>
+);
+
+export function RequireAuth({ children }: { children: ReactNode }) {
   const me = useMe();
   const location = useLocation();
   if (me.isLoading)
@@ -26,10 +39,16 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
       </div>
     );
   if (!me.data) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <RouteErrorBoundary>
+        <Suspense fallback={<PageFallback />}>{children}</Suspense>
+      </RouteErrorBoundary>
+    </AppShell>
+  );
 }
 
-function PublicOnly({ children }: { children: React.ReactNode }) {
+function PublicOnly({ children }: { children: ReactNode }) {
   const me = useMe();
   if (me.data) return <Navigate to="/documents" replace />;
   return children;

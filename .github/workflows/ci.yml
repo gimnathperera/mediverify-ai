@@ -18,7 +18,7 @@ env:
 
 jobs:
   quality:
-    name: Format · Lint · Typecheck
+    name: Format · Lint · Typecheck · Bundle size
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,9 +29,10 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck # packages + root scripts/tests
+      - run: pnpm size # web build + gzip bundle budget (scripts/check-bundle-size.mjs)
 
   test:
-    name: Unit + integration tests
+    name: Unit, web + integration tests
     runs-on: ubuntu-latest
     services:
       postgres:

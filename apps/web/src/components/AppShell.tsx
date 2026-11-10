@@ -24,6 +24,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <a
+        href="#main"
+        className="sr-only z-50 rounded-md bg-white px-3 py-2 text-sm font-medium text-brand-800 shadow focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
+      >
+        Skip to main content
+      </a>
       <div className="bg-slate-900 px-4 py-1.5 text-center text-xs text-slate-200">
         {DEMO_DISCLAIMER}
       </div>
@@ -48,9 +54,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-4 px-4">
-          <Link to="/documents" className="flex items-center gap-2 font-semibold text-slate-900">
+          <Link
+            to="/documents"
+            className="flex items-center gap-2 font-semibold text-slate-900"
+            aria-label="MediVerify AI — your documents"
+          >
             <ShieldCheck className="h-6 w-6 text-brand-700" aria-hidden />
-            MediVerify <span className="hidden text-slate-400 sm:inline">AI</span>
+            MediVerify <span className="hidden text-slate-500 sm:inline">AI</span>
           </Link>
           {me.data && (
             <div className="flex items-center gap-3">
@@ -67,7 +77,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6">{children}</main>
+      <main
+        id="main"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 focus:outline-none"
+      >
+        {children}
+      </main>
     </div>
   );
 }

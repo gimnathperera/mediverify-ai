@@ -3,6 +3,7 @@ import js from '@eslint/js';
 import importX from 'eslint-plugin-import-x';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 import reactHooks from 'eslint-plugin-react-hooks';
+import testingLibrary from 'eslint-plugin-testing-library';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -60,11 +61,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ['scripts/**/*.ts', 'tests/**/*.ts'],
+    files: ['scripts/**/*.{ts,mjs}', 'tests/**/*.ts'],
     rules: { 'no-console': 'off' },
   },
   {
-    files: ['**/test/**/*.ts', 'tests/**/*.ts'],
+    files: ['**/test/**/*.{ts,tsx}', 'tests/**/*.ts'],
     rules: {
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',
@@ -79,6 +80,11 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
     },
+  },
+  {
+    // Component tests: query like a user (roles, labels), await async UI, no DOM poking.
+    files: ['apps/web/test/**/*.{ts,tsx}'],
+    ...testingLibrary.configs['flat/react'],
   },
   {
     files: ['**/*.mjs'],

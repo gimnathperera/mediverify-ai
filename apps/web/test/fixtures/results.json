@@ -1,0 +1,1121 @@
+{
+  "jobId": "18a98268-86c1-4da8-84d5-f2bdc7e83b13",
+  "documentId": "d7364bdb-5eaf-4e3b-8c84-29459d67b262",
+  "status": "completed",
+  "llm": { "provider": "fixture", "model": "fixture" },
+  "summary": {
+    "text": "Daniel Okonkwo, a 58-year-old man, was admitted on March 4, 2026 after five days of worsening shortness of breath on exertion, palpitations and one episode of chest tightness. He was diagnosed with new-onset atrial fibrillation with a fast heart rate and hypertensive urgency; acute coronary syndrome was ruled out. In hospital his heart rate was controlled and his blood pressure was brought down to a stable range. He also has hyperlipidemia, situational anxiety related to the new diagnoses, and mild GERD. He was discharged home in stable condition on March 11, 2026 with six medications: Velantine for hypertension, Cordizem-XR for rate control and hypertension, Pravoxil for hyperlipidemia, Etrazolam for acute anxiety, Pranixol for adjunctive cardiovascular protection, and Quintaxin for GERD prophylaxis. Follow-up is planned with primary care within seven days and cardiology within two weeks. Psychiatry follow-up is stated as within two weeks in one place and at the 8-week mark in another. A lipid panel is planned at six weeks and a basic metabolic panel at two weeks after discharge.",
+    "warnings": [],
+    "model": "fixture:fixture"
+  },
+  "criticalPoints": [
+    {
+      "id": "7e5d32f3-a330-4f47-b4bb-639b49c4a5b1",
+      "rank": 1,
+      "category": "serious_side_effect",
+      "severity": "high",
+      "text": "Report any unexplained muscle pain or weakness immediately while taking Pravoxil — it may indicate a serious side effect.",
+      "relatedMedication": "Pravoxil",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was advised to report any unexplained muscle pain or weakness immediately, as this may indicate a serious side effect.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "fd054c76-0642-4792-8c07-e75bbddce73f",
+      "rank": 2,
+      "category": "document_discrepancy",
+      "severity": "high",
+      "text": "The document gives two different times for the psychiatry reassessment: in two weeks, and at the 8-week mark.",
+      "relatedMedication": "Etrazolam",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "was given a follow-up appointment with outpatient psychiatry in two weeks for reassessment",
+          "quoteValid": true
+        },
+        {
+          "page": 5,
+          "quote": "with outpatient psychiatry follow-up scheduled at the 8-week mark to evaluate response and consider continuation",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "f98abcad-cc5c-499c-935c-313808cc77ee",
+      "rank": 3,
+      "category": "safety_precaution",
+      "severity": "high",
+      "text": "Etrazolam may cause drowsiness: do not drive or operate heavy machinery until you know how it affects you.",
+      "relatedMedication": "Etrazolam",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "he should not drive or operate heavy machinery until he understands how the medication affects him",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "47376b51-c47d-40cd-8a16-814e59521402",
+      "rank": 4,
+      "category": "serious_side_effect",
+      "severity": "medium",
+      "text": "Report a persistent dry cough if it develops while taking Velantine.",
+      "relatedMedication": "Velantine",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Velantine may cause a persistent dry cough; the patient should report this if it develops.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "22980936-3428-49ae-8474-5edfd6acb364",
+      "rank": 5,
+      "category": "administration_timing",
+      "severity": "medium",
+      "text": "The document instructs taking Pravoxil in the morning with breakfast.",
+      "relatedMedication": "Pravoxil",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Pravoxil should be taken in the morning with breakfast for best tolerability.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "5069b888-fc50-45fc-94ad-c06238c66b43",
+      "rank": 6,
+      "category": "administration_timing",
+      "severity": "medium",
+      "text": "Take Quintaxin thirty minutes before breakfast.",
+      "relatedMedication": "Quintaxin",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Quintaxin should be taken thirty minutes before breakfast for optimal effect.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "7f6d1d9a-1ca3-46d8-9a11-97f0bd5bed82",
+      "rank": 7,
+      "category": "administration_timing",
+      "severity": "medium",
+      "text": "Take Cordizem-XR consistently in the morning.",
+      "relatedMedication": "Cordizem-XR",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was counseled to take the medication consistently in the morning and not to discontinue abruptly.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "4f95046b-6175-4b61-8c85-b8ef8b7c2379",
+      "rank": 8,
+      "category": "duration_limit",
+      "severity": "medium",
+      "text": "Etrazolam is intended for short-term use; an 8-week course was discussed.",
+      "relatedMedication": "Etrazolam",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "the patient was counseled that this medication is intended for short-term use",
+          "quoteValid": true
+        },
+        {
+          "page": 5,
+          "quote": "The 8-week course was discussed with the patient",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "90adf1c5-a5a8-41d5-9b89-20858ed73acc",
+      "rank": 9,
+      "category": "duration_limit",
+      "severity": "medium",
+      "text": "Quintaxin is prescribed for 8 weeks, then reassessed.",
+      "relatedMedication": "Quintaxin",
+      "sources": [
+        {
+          "page": 3,
+          "quote": "Quintaxin 20 mg PO once daily, before breakfast 8 weeks, reassess GERD prophylaxis",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "6bc1fca8-f5fc-4ca1-bda1-317a893c8c0c",
+      "rank": 10,
+      "category": "safety_precaution",
+      "severity": "medium",
+      "text": "Do not stop Cordizem-XR abruptly.",
+      "relatedMedication": "Cordizem-XR",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was counseled to take the medication consistently in the morning and not to discontinue abruptly.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "6d46719d-6e3d-49fa-b44e-d41c9e274d38",
+      "rank": 11,
+      "category": "follow_up",
+      "severity": "medium",
+      "text": "Follow up with primary care within seven days, cardiology within two weeks, and outpatient psychiatry within two weeks.",
+      "relatedMedication": null,
+      "sources": [
+        {
+          "page": 5,
+          "quote": "The patient was instructed to follow up with primary care within seven days of discharge, with cardiology within two weeks, and with outpatient psychiatry within two weeks for medication reassessment.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "fbc20aa4-415d-4123-985a-049aee392d00",
+      "rank": 12,
+      "category": "follow_up",
+      "severity": "medium",
+      "text": "Repeat lipid panel six weeks after discharge.",
+      "relatedMedication": "Pravoxil",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "A repeat lipid panel was ordered for six weeks post-discharge to assess response to Pravoxil.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "99109d96-83ef-4039-8150-291e4fababbc",
+      "rank": 13,
+      "category": "follow_up",
+      "severity": "medium",
+      "text": "Basic metabolic panel two weeks after discharge to check kidney function on the new blood-pressure medicines.",
+      "relatedMedication": "Velantine",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "A basic metabolic panel was ordered for two weeks post-discharge to assess renal function on the new antihypertensive regimen.",
+          "quoteValid": true
+        }
+      ]
+    },
+    {
+      "id": "66728661-b3b1-4e68-a181-6e29c47b148e",
+      "rank": 14,
+      "category": "other",
+      "severity": "low",
+      "text": "Cordizem-XR may cause fatigue, especially in the first one to two weeks.",
+      "relatedMedication": "Cordizem-XR",
+      "sources": [
+        {
+          "page": 5,
+          "quote": "Cordizem-XR may cause fatigue, particularly in the first one to two weeks.",
+          "quoteValid": true
+        }
+      ]
+    }
+  ],
+  "medications": [
+    {
+      "id": "6cb6f1bd-d1a2-40b9-94dc-cc2a34db35a3",
+      "ordinal": 1,
+      "drugName": "Velantine",
+      "doseValue": 10,
+      "doseUnit": "mg",
+      "doseRaw": "10 mg",
+      "route": "oral",
+      "routeRaw": "PO once daily",
+      "frequency": "once_daily",
+      "frequencyRaw": "PO once daily",
+      "timing": null,
+      "durationValue": null,
+      "durationUnit": "indefinite",
+      "durationRaw": "Continue indefinitely",
+      "indication": "Hypertension",
+      "sourcePage": 3,
+      "sourceQuote": "Velantine 10 mg PO once daily Continue indefinitely Hypertension",
+      "sourceQuoteValid": true,
+      "ambiguities": []
+    },
+    {
+      "id": "d541c13e-0aba-4979-bb01-a840ae314e03",
+      "ordinal": 2,
+      "drugName": "Cordizem-XR",
+      "doseValue": 100,
+      "doseUnit": "mg",
+      "doseRaw": "100 mg",
+      "route": "oral",
+      "routeRaw": "PO once daily",
+      "frequency": "once_daily",
+      "frequencyRaw": "PO once daily",
+      "timing": "morning",
+      "durationValue": null,
+      "durationUnit": "indefinite",
+      "durationRaw": "Continue indefinitely",
+      "indication": "Rate control, hypertension",
+      "sourcePage": 3,
+      "sourceQuote": "Cordizem-XR 100 mg PO once daily Continue indefinitely Rate control, hypertension",
+      "sourceQuoteValid": true,
+      "ambiguities": []
+    },
+    {
+      "id": "7c1562b4-42bc-4cff-8329-24e86a8d118a",
+      "ordinal": 3,
+      "drugName": "Pravoxil",
+      "doseValue": 20,
+      "doseUnit": "mg",
+      "doseRaw": "20 mg",
+      "route": "oral",
+      "routeRaw": "PO every morning",
+      "frequency": "once_daily",
+      "frequencyRaw": "PO every morning",
+      "timing": "morning",
+      "durationValue": null,
+      "durationUnit": "indefinite",
+      "durationRaw": "Continue indefinitely",
+      "indication": "Hyperlipidemia",
+      "sourcePage": 3,
+      "sourceQuote": "Pravoxil 20 mg PO every morning Continue indefinitely Hyperlipidemia",
+      "sourceQuoteValid": true,
+      "ambiguities": []
+    },
+    {
+      "id": "4909afdb-2fb1-4e7c-a814-d160a1a0439f",
+      "ordinal": 4,
+      "drugName": "Etrazolam",
+      "doseValue": 0.5,
+      "doseUnit": "mg",
+      "doseRaw": "0.5 mg",
+      "route": "oral",
+      "routeRaw": "PO twice daily",
+      "frequency": "twice_daily",
+      "frequencyRaw": "PO twice daily",
+      "timing": null,
+      "durationValue": 8,
+      "durationUnit": "weeks",
+      "durationRaw": "8 weeks",
+      "indication": "Acute anxiety, sleep disturbance",
+      "sourcePage": 3,
+      "sourceQuote": "Etrazolam 0.5 mg PO twice daily 8 weeks Acute anxiety, sleep disturbance",
+      "sourceQuoteValid": true,
+      "ambiguities": [
+        "Psychiatry reassessment is stated as 'in two weeks' (p.3, p.5 follow-up) and 'at the 8-week mark' (p.5 counseling)."
+      ]
+    },
+    {
+      "id": "4a776e0f-45f8-4c35-a9cd-31ce3eca790f",
+      "ordinal": 5,
+      "drugName": "Pranixol",
+      "doseValue": 10,
+      "doseUnit": "mg",
+      "doseRaw": "10 mg",
+      "route": "oral",
+      "routeRaw": "PO once daily",
+      "frequency": "once_daily",
+      "frequencyRaw": "PO once daily",
+      "timing": null,
+      "durationValue": null,
+      "durationUnit": "indefinite",
+      "durationRaw": "Continue indefinitely",
+      "indication": "Adjunctive cardiovascular protection",
+      "sourcePage": 3,
+      "sourceQuote": "Pranixol 10 mg PO once daily Continue indefinitely Adjunctive cardiovascular protection",
+      "sourceQuoteValid": true,
+      "ambiguities": []
+    },
+    {
+      "id": "fbc24288-af50-4794-8149-e1781bd87510",
+      "ordinal": 6,
+      "drugName": "Quintaxin",
+      "doseValue": 20,
+      "doseUnit": "mg",
+      "doseRaw": "20 mg",
+      "route": "oral",
+      "routeRaw": "PO once daily, before breakfast",
+      "frequency": "once_daily",
+      "frequencyRaw": "PO once daily, before breakfast",
+      "timing": "before_breakfast",
+      "durationValue": 8,
+      "durationUnit": "weeks",
+      "durationRaw": "8 weeks, reassess",
+      "indication": "GERD prophylaxis",
+      "sourcePage": 3,
+      "sourceQuote": "Quintaxin 20 mg PO once daily, before breakfast 8 weeks, reassess GERD prophylaxis",
+      "sourceQuoteValid": true,
+      "ambiguities": []
+    }
+  ],
+  "verifications": [
+    {
+      "id": "a96e4746-544a-401e-93c1-7f2432f017de",
+      "medicationId": "6cb6f1bd-d1a2-40b9-94dc-cc2a34db35a3",
+      "drugName": "Velantine",
+      "status": "supported",
+      "monographName": "Velantine",
+      "summary": "Consistent with the Velantine monograph (dose, unit, route, frequency, indication). Dose, route, frequency and indication match the Velantine monograph; it sets no timing or duration limit.",
+      "similarNames": [],
+      "coverageCitation": null,
+      "findings": [
+        {
+          "id": "2427243f-df87-40bc-b212-d0cf9bc5f5d4",
+          "field": "dose",
+          "verdict": "consistent",
+          "prescribedValue": "10 mg",
+          "referenceConstraint": "standard 10 mg",
+          "explanation": "Dose matches the monograph standard adult dose of 10 mg.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Velantine",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 2,
+            "quote": "10 mg orally once daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "ea460c1f-eb1b-4bb5-b316-4548c1833df1",
+          "field": "unit",
+          "verdict": "consistent",
+          "prescribedValue": "mg",
+          "referenceConstraint": "mg",
+          "explanation": "Dose unit (mg) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Velantine",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 2,
+            "quote": "10 mg orally once daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "5e23003e-2c2c-407d-b2e7-b6667dc87370",
+          "field": "route",
+          "verdict": "consistent",
+          "prescribedValue": "oral",
+          "referenceConstraint": "oral",
+          "explanation": "Route (oral) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Velantine",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 2,
+            "quote": "10 mg orally once daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "d5e79774-6bfb-49ed-b743-d85591296a8d",
+          "field": "frequency",
+          "verdict": "consistent",
+          "prescribedValue": "PO once daily",
+          "referenceConstraint": "once daily",
+          "explanation": "Frequency (once daily) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Velantine",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 2,
+            "quote": "10 mg orally once daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "0f53f8d9-4e5f-4408-8c32-f9a5295e13d5",
+          "field": "timing",
+          "verdict": "not_addressed",
+          "prescribedValue": null,
+          "referenceConstraint": null,
+          "explanation": "The monograph does not specify administration timing.",
+          "decidedBy": "deterministic",
+          "confidence": "medium",
+          "citation": null
+        },
+        {
+          "id": "088a63f8-54dd-4d43-af10-337f892c7767",
+          "field": "duration",
+          "verdict": "not_addressed",
+          "prescribedValue": "Continue indefinitely",
+          "referenceConstraint": null,
+          "explanation": "The monograph states no numeric duration limit.",
+          "decidedBy": "deterministic",
+          "confidence": "low",
+          "citation": null
+        },
+        {
+          "id": "e922580a-a767-45fc-b66a-bea5ef9f605b",
+          "field": "indication",
+          "verdict": "consistent",
+          "prescribedValue": "Hypertension",
+          "referenceConstraint": "First-line antihypertensive",
+          "explanation": "Hypertension is the monograph's first-line indication.",
+          "decidedBy": "llm",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "7fc5d200-c079-4bc2-973c-857b124c8041",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Velantine",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Indication",
+            "page": 2,
+            "quote": "First-line antihypertensive in adult patients without contraindication.",
+            "quoteValid": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "b55a9760-e88b-4e8d-8a43-ddcd6c90fcb7",
+      "medicationId": "d541c13e-0aba-4979-bb01-a840ae314e03",
+      "drugName": "Cordizem-XR",
+      "status": "contradicted",
+      "monographName": "Cordizem-XR",
+      "summary": "Conflicts with the Cordizem-XR monograph on dose. The document describes this as a new start, yet 100 mg exceeds the standard starting dose of 50 mg. Under the monograph's titration in 25 mg increments at intervals of no less than 2 weeks, reaching 100 mg needs 2 step(s) — at least 4 weeks. Being below the 200 mg maximum does not make this initiation dose consistent.",
+      "similarNames": [],
+      "coverageCitation": null,
+      "findings": [
+        {
+          "id": "17234b67-4dd8-4515-ac69-0225df319b78",
+          "field": "dose",
+          "verdict": "conflict",
+          "prescribedValue": "100 mg",
+          "referenceConstraint": "start 50 mg; titration in 25 mg increments at intervals of no less than 2 weeks",
+          "explanation": "The document describes this as a new start, yet 100 mg exceeds the standard starting dose of 50 mg. Under the monograph's titration in 25 mg increments at intervals of no less than 2 weeks, reaching 100 mg needs 2 step(s) — at least 4 weeks. Being below the 200 mg maximum does not make this initiation dose consistent.",
+          "decidedBy": "both",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 3,
+            "quote": "50 mg orally once daily, taken in the morning. May be titrated upward in increments of 25 mg at intervals of no less than two weeks based on heart rate response and blood pressure.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "02d0f5cc-9627-4abc-889d-431e55d5eb34",
+          "field": "unit",
+          "verdict": "consistent",
+          "prescribedValue": "mg",
+          "referenceConstraint": "mg",
+          "explanation": "Dose unit (mg) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 3,
+            "quote": "50 mg orally once daily, taken in the morning.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "478d2620-e34b-4aad-8deb-dd357b0d8377",
+          "field": "route",
+          "verdict": "consistent",
+          "prescribedValue": "oral",
+          "referenceConstraint": "oral",
+          "explanation": "Route (oral) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 3,
+            "quote": "50 mg orally once daily, taken in the morning.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "cd9cc8d7-1457-4bb4-becb-d216ba3c8173",
+          "field": "frequency",
+          "verdict": "consistent",
+          "prescribedValue": "PO once daily",
+          "referenceConstraint": "once daily",
+          "explanation": "Frequency (once daily) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 3,
+            "quote": "50 mg orally once daily, taken in the morning.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "98d61c03-768d-4016-b4c1-5b63ea0ef79c",
+          "field": "timing",
+          "verdict": "consistent",
+          "prescribedValue": "in the morning",
+          "referenceConstraint": "in the morning",
+          "explanation": "Timing (in the morning) is consistent with the monograph (in the morning).",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 3,
+            "quote": "50 mg orally once daily, taken in the morning.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "caf62660-a21e-4e21-bd18-a89fac9347bb",
+          "field": "duration",
+          "verdict": "not_addressed",
+          "prescribedValue": "Continue indefinitely",
+          "referenceConstraint": null,
+          "explanation": "The monograph states no numeric duration limit.",
+          "decidedBy": "deterministic",
+          "confidence": "low",
+          "citation": null
+        },
+        {
+          "id": "76d6d5df-0fa8-462f-95ee-4cb66e492dd8",
+          "field": "indication",
+          "verdict": "consistent",
+          "prescribedValue": "Rate control, hypertension",
+          "referenceConstraint": "Rate control in atrial fibrillation; second-line antihypertensive with concurrent need for rate control",
+          "explanation": "Atrial fibrillation rate control with concurrent hypertension matches the monograph indications.",
+          "decidedBy": "llm",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "91e9f041-9ee8-4429-a387-346c98db9195",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Cordizem-XR",
+            "section": "I. Cardiovascular Agents",
+            "fieldLabel": "Indication",
+            "page": 3,
+            "quote": "Rate control in atrial fibrillation and atrial flutter.",
+            "quoteValid": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "a2fd236f-29ad-485c-9120-3ecfd252e9a6",
+      "medicationId": "7c1562b4-42bc-4cff-8329-24e86a8d118a",
+      "drugName": "Pravoxil",
+      "status": "contradicted",
+      "monographName": "Pravoxil",
+      "summary": "Conflicts with the Pravoxil monograph on timing. Prescribed in the morning, but the monograph states it must not be given in the morning (required: at bedtime).",
+      "similarNames": [],
+      "coverageCitation": null,
+      "findings": [
+        {
+          "id": "64fc753f-e5b7-4643-b9bd-2bd9ecbbfab1",
+          "field": "dose",
+          "verdict": "consistent",
+          "prescribedValue": "20 mg",
+          "referenceConstraint": "standard 20 mg",
+          "explanation": "Dose matches the monograph standard adult dose of 20 mg.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 5,
+            "quote": "20 mg orally once daily, at bedtime.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "f97b08b1-6405-4951-bd0a-d170ae4bf175",
+          "field": "unit",
+          "verdict": "consistent",
+          "prescribedValue": "mg",
+          "referenceConstraint": "mg",
+          "explanation": "Dose unit (mg) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 5,
+            "quote": "20 mg orally once daily, at bedtime.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "2287df7b-efeb-46dc-9a27-9826cf46bc58",
+          "field": "route",
+          "verdict": "consistent",
+          "prescribedValue": "oral",
+          "referenceConstraint": "oral",
+          "explanation": "Route (oral) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 5,
+            "quote": "20 mg orally once daily, at bedtime.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "076699a3-cfa4-4417-8123-5dc8b8c8b8a6",
+          "field": "frequency",
+          "verdict": "consistent",
+          "prescribedValue": "PO every morning",
+          "referenceConstraint": "once daily",
+          "explanation": "Frequency (once daily) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 5,
+            "quote": "20 mg orally once daily, at bedtime.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "65890533-e376-4102-911d-142120cea121",
+          "field": "timing",
+          "verdict": "conflict",
+          "prescribedValue": "in the morning",
+          "referenceConstraint": "at bedtime, not in the morning",
+          "explanation": "Prescribed in the morning, but the monograph states it must not be given in the morning (required: at bedtime).",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "c0c58f02-8e2b-4998-8f98-5840652d5eb4",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Prescribing notes",
+            "page": 5,
+            "quote": "Patients should be counseled to take Pravoxil at bedtime, not in the morning.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "03885ec1-ffb3-4a5e-85e8-ea22ce7d7b21",
+          "field": "duration",
+          "verdict": "not_addressed",
+          "prescribedValue": "Continue indefinitely",
+          "referenceConstraint": null,
+          "explanation": "The monograph states no numeric duration limit.",
+          "decidedBy": "deterministic",
+          "confidence": "low",
+          "citation": null
+        },
+        {
+          "id": "9e79a665-0fbb-4e01-b1ab-19388347a8f6",
+          "field": "indication",
+          "verdict": "consistent",
+          "prescribedValue": "Hyperlipidemia",
+          "referenceConstraint": "Prevention of ASCVD with elevated LDL",
+          "explanation": "Elevated LDL is within the monograph indication.",
+          "decidedBy": "llm",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "22ef1214-dbb7-4c9d-b5fa-d58d7c89af57",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Pravoxil",
+            "section": "II. Lipid-Lowering Agents",
+            "fieldLabel": "Indication",
+            "page": 5,
+            "quote": "Primary and secondary prevention of atherosclerotic cardiovascular disease in patients with elevated LDL cholesterol or established cardiovascular disease.",
+            "quoteValid": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "c08c81d0-015c-417c-a75f-faff4c1ea74f",
+      "medicationId": "4909afdb-2fb1-4e7c-a814-d160a1a0439f",
+      "drugName": "Etrazolam",
+      "status": "contradicted",
+      "monographName": "Etrazolam",
+      "summary": "Conflicts with the Etrazolam monograph on duration. Intended duration of 8 weeks exceeds the monograph's 4-week limit.",
+      "similarNames": [],
+      "coverageCitation": null,
+      "findings": [
+        {
+          "id": "3f347143-e598-4dd4-aab9-a58966af6a9c",
+          "field": "dose",
+          "verdict": "consistent",
+          "prescribedValue": "0.5 mg",
+          "referenceConstraint": "standard 0.5 mg",
+          "explanation": "Dose matches the monograph standard adult dose of 0.5 mg.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Standard adult dose",
+            "page": 6,
+            "quote": "0.5 mg orally twice daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "5233df87-884b-4924-a81b-668b52d1508a",
+          "field": "unit",
+          "verdict": "consistent",
+          "prescribedValue": "mg",
+          "referenceConstraint": "mg",
+          "explanation": "Dose unit (mg) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Standard adult dose",
+            "page": 6,
+            "quote": "0.5 mg orally twice daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "03279499-26b1-47ee-893a-e539b5e960d9",
+          "field": "route",
+          "verdict": "consistent",
+          "prescribedValue": "oral",
+          "referenceConstraint": "oral",
+          "explanation": "Route (oral) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Standard adult dose",
+            "page": 6,
+            "quote": "0.5 mg orally twice daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "822f533b-8da1-4c9d-8f82-e9660b81e551",
+          "field": "frequency",
+          "verdict": "consistent",
+          "prescribedValue": "PO twice daily",
+          "referenceConstraint": "twice daily",
+          "explanation": "Frequency (twice daily) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Standard adult dose",
+            "page": 6,
+            "quote": "0.5 mg orally twice daily.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "a0b6a2e1-1406-4ad2-9205-c0c991f87359",
+          "field": "timing",
+          "verdict": "not_addressed",
+          "prescribedValue": null,
+          "referenceConstraint": null,
+          "explanation": "The monograph does not specify administration timing.",
+          "decidedBy": "deterministic",
+          "confidence": "medium",
+          "citation": null
+        },
+        {
+          "id": "666831fc-ed89-4418-8915-cf7fcf6ab244",
+          "field": "duration",
+          "verdict": "conflict",
+          "prescribedValue": "8 weeks",
+          "referenceConstraint": "≤ 4 weeks",
+          "explanation": "Intended duration of 8 weeks exceeds the monograph's 4-week limit.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "c6954abc-6534-4973-87a8-75f1fc6ea7b8",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Prescribing notes",
+            "page": 6,
+            "quote": "Prescribers must not initiate Etrazolam with an intended duration beyond 4 weeks.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "26388476-68e2-4eea-8815-5caba884267a",
+          "field": "indication",
+          "verdict": "consistent",
+          "prescribedValue": "Acute anxiety, sleep disturbance",
+          "referenceConstraint": "Short-term management of acute/situational anxiety and anxiety-related insomnia",
+          "explanation": "Situational anxiety with sleep disturbance matches the indication.",
+          "decidedBy": "llm",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "45bbceda-081f-47a0-832a-81ba812d651b",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Etrazolam",
+            "section": "III. Anxiolytics and Sedatives",
+            "fieldLabel": "Indication",
+            "page": 6,
+            "quote": "Short-term management of acute anxiety, situational anxiety, and selected cases of insomnia secondary to anxiety.",
+            "quoteValid": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "9c57b911-182a-4af0-8075-64711941e422",
+      "medicationId": "4a776e0f-45f8-4c35-a9cd-31ce3eca790f",
+      "drugName": "Pranixol",
+      "status": "unsupported",
+      "monographName": null,
+      "summary": "No monograph for Pranixol exists in Meridian Bay Medical Center — Institutional Formulary Digest (rev. 8.2). This is a coverage gap — the prescription is neither confirmed nor shown to be wrong. Similar-looking name(s) Pravoxil were deliberately NOT treated as a match.",
+      "similarNames": ["Pravoxil"],
+      "coverageCitation": {
+        "chunkId": "48b30a14-5f1f-49bd-b0ff-c087840884c2",
+        "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+        "monographName": null,
+        "section": "VII. Quick-Reference Summary › Drugs not in this digest",
+        "fieldLabel": null,
+        "page": 10,
+        "quote": "This digest contains the institutional monographs for the eight medications above. Other medications may be on formulary at Meridian Bay Medical Center but are not addressed in this digest. Prescribers requiring guidance on a medication not listed here should contact the inpatient pharmacy directly. Do not infer prescribing parameters for unlisted medications from the entries above.",
+        "quoteValid": true
+      },
+      "findings": [
+        {
+          "id": "69799fe9-1edd-43fb-ba7a-61e502d86f88",
+          "field": "identity",
+          "verdict": "not_addressed",
+          "prescribedValue": "Pranixol",
+          "referenceConstraint": null,
+          "explanation": "No supporting passage exists: the reference has no monograph for Pranixol. Its coverage note says prescribing parameters for unlisted medications must not be inferred from other entries.",
+          "decidedBy": "deterministic",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "48b30a14-5f1f-49bd-b0ff-c087840884c2",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": null,
+            "section": "VII. Quick-Reference Summary › Drugs not in this digest",
+            "fieldLabel": null,
+            "page": 10,
+            "quote": "Other medications may be on formulary at Meridian Bay Medical Center but are not addressed in this digest.",
+            "quoteValid": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "8e88cbe5-a147-4841-9028-3d885837b127",
+      "medicationId": "fbc24288-af50-4794-8149-e1781bd87510",
+      "drugName": "Quintaxin",
+      "status": "supported",
+      "monographName": "Quintaxin",
+      "summary": "Consistent with the Quintaxin monograph (dose, unit, route, frequency, timing, duration, indication). Dose, timing before breakfast, and the 8-week reassessment all match the Quintaxin monograph.",
+      "similarNames": [],
+      "coverageCitation": null,
+      "findings": [
+        {
+          "id": "ec55b2f9-7648-4e34-ae08-1cf2509b7115",
+          "field": "dose",
+          "verdict": "consistent",
+          "prescribedValue": "20 mg",
+          "referenceConstraint": "standard 20 mg",
+          "explanation": "Dose matches the monograph standard adult dose of 20 mg.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 8,
+            "quote": "20 mg orally once daily, taken 30 minutes before breakfast.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "da8e6b75-f23a-4145-a711-db42ecbe3c65",
+          "field": "unit",
+          "verdict": "consistent",
+          "prescribedValue": "mg",
+          "referenceConstraint": "mg",
+          "explanation": "Dose unit (mg) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 8,
+            "quote": "20 mg orally once daily, taken 30 minutes before breakfast.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "cc4970b3-d7e4-4bc2-936a-d2487e920a75",
+          "field": "route",
+          "verdict": "consistent",
+          "prescribedValue": "oral",
+          "referenceConstraint": "oral",
+          "explanation": "Route (oral) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 8,
+            "quote": "20 mg orally once daily, taken 30 minutes before breakfast.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "5329edb3-18ad-457f-b8af-78b13eb32bce",
+          "field": "frequency",
+          "verdict": "consistent",
+          "prescribedValue": "PO once daily, before breakfast",
+          "referenceConstraint": "once daily",
+          "explanation": "Frequency (once daily) matches the monograph.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 8,
+            "quote": "20 mg orally once daily, taken 30 minutes before breakfast.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "c308cbbb-7f4b-41a7-87ac-0f4a4f4e2d8d",
+          "field": "timing",
+          "verdict": "consistent",
+          "prescribedValue": "before breakfast",
+          "referenceConstraint": "before breakfast",
+          "explanation": "Timing (before breakfast) is consistent with the monograph (before breakfast).",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Standard adult dose",
+            "page": 8,
+            "quote": "20 mg orally once daily, taken 30 minutes before breakfast.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "87a602e2-8c58-4a73-ae31-c19c42de53c9",
+          "field": "duration",
+          "verdict": "consistent",
+          "prescribedValue": "8 weeks, reassess",
+          "referenceConstraint": "reassess at 8 weeks",
+          "explanation": "Planned course (\"8 weeks, reassess\") is consistent with the monograph's reassessment at 8 weeks.",
+          "decidedBy": "both",
+          "confidence": "high",
+          "citation": {
+            "chunkId": "d55128f5-b4b2-469a-8a3e-79aaee996cfb",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Monitoring",
+            "page": 8,
+            "quote": "Reassessment of continued indication at 8 weeks.",
+            "quoteValid": true
+          }
+        },
+        {
+          "id": "883d611f-ba70-4f44-a71c-784c404e9979",
+          "field": "indication",
+          "verdict": "consistent",
+          "prescribedValue": "GERD prophylaxis",
+          "referenceConstraint": "Prophylaxis on multi-drug regimens",
+          "explanation": "GERD prophylaxis on a multi-drug regimen matches.",
+          "decidedBy": "llm",
+          "confidence": "medium",
+          "citation": {
+            "chunkId": "621a1928-0320-41b3-87b3-1d377129ad28",
+            "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+            "monographName": "Quintaxin",
+            "section": "V. Gastrointestinal Agents",
+            "fieldLabel": "Indication",
+            "page": 8,
+            "quote": "Also used as prophylaxis in patients on multi-drug regimens with elevated risk of medication-induced gastritis.",
+            "quoteValid": true
+          }
+        }
+      ]
+    }
+  ]
+}

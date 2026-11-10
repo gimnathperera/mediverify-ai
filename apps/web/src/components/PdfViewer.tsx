@@ -151,7 +151,16 @@ export function PdfViewer({
           </Button>
         </div>
       </div>
-      <div ref={box} className="min-h-0 flex-1 overflow-auto bg-slate-100 p-2">
+      {/* Focusable so keyboard users can scroll the page image with the arrow keys (WCAG 2.1.1;
+          axe scrollable-region-focusable). */}
+      <div
+        ref={box}
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region must be focusable
+        tabIndex={0}
+        role="region"
+        aria-label={`${title}, page ${page}`}
+        className="min-h-0 flex-1 overflow-auto bg-slate-100 p-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600"
+      >
         {error ? (
           <Alert tone="danger" title="Could not display the document">
             {error}

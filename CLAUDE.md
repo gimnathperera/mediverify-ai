@@ -16,7 +16,7 @@ Authoritative sources: `resources/assignment_brief_medical.pdf` (requirements), 
 | DB         | PostgreSQL 16 + pgvector; plain SQL migrations in `db/migrations`; raw SQL via `pg` (no ORM)                   |
 | LLM        | OpenAI (strict JSON-schema structured output) behind `LlmProvider`; `fixture` provider for deterministic tests |
 | Embeddings | Local `Xenova/bge-small-en-v1.5` (384-d) via `@huggingface/transformers` behind `EmbeddingProvider`            |
-| Tests      | Vitest (unit + integration vs real Postgres), supertest, Playwright E2E                                        |
+| Tests      | Vitest (unit, web: jsdom + Testing Library + MSW + axe, integration vs real Postgres), Playwright E2E + axe    |
 
 ## Layout
 
@@ -41,11 +41,13 @@ pnpm db:migrate && pnpm db:seed        # against DATABASE_URL
 pnpm dev:api | pnpm dev:worker | pnpm dev:web
 pnpm lint | pnpm lint:fix | pnpm format | pnpm format:check | pnpm typecheck
 pnpm test:unit                         # no DB needed
+pnpm test:web                          # React components in jsdom (MSW-mocked API), no DB needed
+pnpm size                              # web build + gzip bundle budget (scripts/check-bundle-size.mjs)
 pnpm test:integration                  # needs Postgres (TEST_DATABASE_URL)
 pnpm test:e2e                          # Playwright vs running Compose stack (fixture mode)
 pnpm eval                              # retrieval + classification eval (fixture LLM) → docs/evaluation.md numbers
 pnpm eval:live                         # same with real OpenAI (needs OPENAI_API_KEY) — label results as live
-pnpm run ci                            # format:check + lint + typecheck + unit + integration (mirrors CI; `pnpm ci` is a pnpm builtin)
+pnpm run ci                            # format:check + lint + typecheck + unit + web + integration (mirrors CI; `pnpm ci` is a pnpm builtin)
 ```
 
 ## Conventions
@@ -87,7 +89,7 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-10): GitHub Actions green on `main`; 46 unit + 42 integration + 4 Playwright pass locally;
+- Status (2026-11-10): GitHub Actions green on `main`; 38 unit + 47 web + 42 integration + 6 Playwright pass locally;
   live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
@@ -96,8 +98,13 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
 - Security: CI fails on high/critical advisories in production deps (`pnpm audit --prod --audit-level=high`).
   `sharp` is overridden to 0.35.5 in `pnpm-workspace.yaml` (transformers pins a vulnerable ^0.34). `pdfjs-dist`
   stays 5.4.296 in core and web (react-pdf's pin; 5.6.83–6.2.107 have CVE-2026-16633); Dependabot ignores it.
-- Web tests live in `apps/web/test` (pure logic: `applyEvent`, `validateFile`); `pnpm test:coverage` enforces the
-  thresholds in `vitest.config.ts`. The PDF viewer is lazy-loaded (`LazyPdfViewer.tsx`); web builds ship no source maps.
+- Web tests (`apps/web/test`, Vitest project `web`): custom env `jsdom-environment.ts` keeps Node's AbortController
+  (jsdom's breaks Node fetch/MSW); `setup.ts` resolves relative `/api` URLs, stubs EventSource (`FakeEventSource`).
+  MSW handlers serve DTOs captured from a real fixture run (`test/fixtures/*.json`). Query by role/label (eslint
+  testing-library); every page test runs `expectNoA11yViolations`; contrast is checked in `tests/e2e/a11y.spec.ts`.
+  The PDF viewer is lazy-loaded and mocked in jsdom; pages are route-level lazy chunks; `pnpm size` enforces budgets.
+  UI conventions: user-facing error wording in `lib/messages.ts`; `usePageTitle` per page; accessible names must
+  contain the visible text (axe label-content-name-mismatch); no `text-slate-400` for text on white (contrast).
 - Deployment guards: `ALLOW_SIGNUP`, `DAILY_JOB_LIMIT` (uploads + retries per user per 24 h, checked in the
   job-creating tx). Verification runs `VERIFY_CONCURRENCY` medications in parallel (`mapWithConcurrency`).
 - Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.

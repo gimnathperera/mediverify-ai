@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 import { Alert, Button, Card, Input, Label } from '../components/ui/primitives';
 import { api, ApiRequestError } from '../lib/api';
 import { qk, useConfig } from '../lib/queries';
+import { usePageTitle } from '../lib/usePageTitle';
 
 export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const qc = useQueryClient();
@@ -14,11 +15,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const location = useLocation();
   const emailId = useId();
   const pwId = useId();
+  const errorId = useId();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const isLogin = mode === 'login';
+  usePageTitle(isLogin ? 'Sign in' : 'Create an account');
   // Hidden only once the server says so; a failed config fetch keeps the default UI.
   const signupEnabled = useConfig().data?.signupEnabled !== false;
 
@@ -47,13 +50,13 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-10">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-4 py-10">
       <div className="mb-6 flex items-center gap-2 text-xl font-semibold text-slate-900">
         <ShieldCheck className="h-7 w-7 text-brand-700" aria-hidden /> MediVerify AI
       </div>
       <Card className="w-full max-w-sm p-6">
         <h1 className="text-lg font-semibold">{isLogin ? 'Sign in' : 'Create an account'}</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-1 text-sm text-slate-600">
           Verify discharge prescriptions against an institutional formulary.
         </p>
         {!isLogin && !signupEnabled ? (
@@ -67,6 +70,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               <Label htmlFor={emailId}>Email</Label>
               <Input
                 id={emailId}
+                aria-invalid={Boolean(error) || undefined}
+                aria-describedby={error ? errorId : undefined}
                 type="email"
                 autoComplete="email"
                 required
@@ -88,9 +93,11 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
               {!isLogin && <p className="text-xs text-slate-500">At least 8 characters.</p>}
             </div>
             {error && (
-              <Alert tone="danger" title={isLogin ? 'Sign-in failed' : 'Sign-up failed'}>
-                {error}
-              </Alert>
+              <div id={errorId}>
+                <Alert tone="danger" title={isLogin ? 'Sign-in failed' : 'Sign-up failed'}>
+                  {error}
+                </Alert>
+              </div>
             )}
             <Button type="submit" className="w-full" loading={busy}>
               {isLogin ? 'Sign in' : 'Create account'}
@@ -101,21 +108,21 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
           {isLogin && !signupEnabled ? null : isLogin ? (
             <>
               No account?{' '}
-              <Link className="text-brand-700 hover:underline" to="/signup">
+              <Link className="text-brand-700 underline underline-offset-2" to="/signup">
                 Sign up
               </Link>
             </>
           ) : (
             <>
               Already registered?{' '}
-              <Link className="text-brand-700 hover:underline" to="/login">
+              <Link className="text-brand-700 underline underline-offset-2" to="/login">
                 Sign in
               </Link>
             </>
           )}
         </p>
       </Card>
-      <p className="mt-6 max-w-sm text-center text-xs text-slate-500">{DEMO_DISCLAIMER}</p>
-    </div>
+      <p className="mt-6 max-w-sm text-center text-xs text-slate-600">{DEMO_DISCLAIMER}</p>
+    </main>
   );
 }

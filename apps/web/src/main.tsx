@@ -27,7 +27,8 @@ createRoot(document.getElementById('root')!).render(
         <ErrorBoundary>
           <App />
         </ErrorBoundary>
-        <Toaster richColors position="top-right" />
+        {/* Default (neutral) toasts: richColors' green-on-green text fails WCAG AA contrast. */}
+        <Toaster position="top-right" closeButton />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

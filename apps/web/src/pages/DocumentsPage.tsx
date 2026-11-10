@@ -1,21 +1,53 @@
 import type { DocumentDto } from '@mediverify/shared';
 import { STAGE_LABELS } from '@mediverify/shared';
-import { FileText, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { FileText, RefreshCw, Search } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 
 import { JobStatusBadge } from '../components/status';
-import { Alert, Button, Card, EmptyState, Skeleton } from '../components/ui/primitives';
+import { Alert, Button, Card, EmptyState, Input, Skeleton } from '../components/ui/primitives';
 import { UploadPanel } from '../components/UploadPanel';
 import { useDocuments, useReferences, useUploadDocument, type PendingUpload } from '../lib/queries';
-import { formatBytes, formatDateTime } from '../lib/utils';
+import { usePageTitle } from '../lib/usePageTitle';
+import { cn, formatBytes, formatDateTime } from '../lib/utils';
+
+type StatusFilter = 'all' | 'processing' | 'completed' | 'failed';
+const FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'processing', label: 'Processing' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+];
+
+function statusGroup(d: DocumentDto): Exclude<StatusFilter, 'all'> {
+  const s = d.latestJob?.status;
+  return s === 'completed' ? 'completed' : s === 'failed' ? 'failed' : 'processing';
+}
+
+/** Client-side filter over the loaded list (the API returns the latest 50). */
+export function filterDocuments(docs: DocumentDto[], query: string, status: StatusFilter) {
+  const q = query.trim().toLowerCase();
+  return docs.filter(
+    (d) =>
+      (status === 'all' || statusGroup(d) === status) &&
+      (!q || d.filename.toLowerCase().includes(q)),
+  );
+}
 
 export function DocumentsPage() {
   const docs = useDocuments();
   const refs = useReferences();
   const navigate = useNavigate();
   const [pending, setPending] = useState<PendingUpload[]>([]);
+  const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<StatusFilter>('all');
+  const searchId = useId();
+  usePageTitle('Documents');
+  const all = docs.data;
+  const shown = useMemo(() => filterDocuments(all ?? [], query, status), [all, query, status]);
+  const countFor = (f: StatusFilter) =>
+    f === 'all' ? (all?.length ?? 0) : (all ?? []).filter((d) => statusGroup(d) === f).length;
   const upload = useUploadDocument((tempId, progress) =>
     setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, progress } : x))),
   );
@@ -73,11 +105,55 @@ export function DocumentsPage() {
             size="sm"
             onClick={() => void docs.refetch()}
             aria-label="Refresh list"
+            loading={docs.isFetching && !docs.isLoading}
           >
-            <RefreshCw className="h-4 w-4" />
+            {!(docs.isFetching && !docs.isLoading) && <RefreshCw className="h-4 w-4" aria-hidden />}
           </Button>
         </div>
-        <ul className="space-y-2" aria-live="polite">
+        {(all?.length ?? 0) > 0 && (
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <label htmlFor={searchId} className="sr-only">
+                Search documents by file name
+              </label>
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                aria-hidden
+              />
+              <Input
+                id={searchId}
+                type="search"
+                placeholder="Search by file name"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <div
+              className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1"
+              role="group"
+              aria-label="Filter by status"
+            >
+              {FILTERS.map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  aria-pressed={status === f.value}
+                  onClick={() => setStatus(f.value)}
+                  className={cn(
+                    'whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-brand-600',
+                    status === f.value
+                      ? 'bg-brand-700 text-white'
+                      : 'text-slate-700 hover:bg-slate-100',
+                  )}
+                >
+                  {f.label} <span className="tabular-nums">{countFor(f.value)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <ul className="space-y-2" aria-live="polite" aria-label="Documents">
           {pending.map((p) => (
             <li key={p.tempId}>
               <Card className={p.error ? 'border-rose-300 p-4' : 'p-4'}>
@@ -133,10 +209,23 @@ export function DocumentsPage() {
               </Alert>
             </li>
           )}
-          {docs.data?.map((d) => (
+          {shown.map((d) => (
             <DocumentRow key={d.id} d={d} />
           ))}
         </ul>
+        {(all?.length ?? 0) > 0 && shown.length === 0 && (
+          <EmptyState icon={<Search className="h-8 w-8" />} title="No documents match">
+            <Button
+              variant="link"
+              onClick={() => {
+                setQuery('');
+                setStatus('all');
+              }}
+            >
+              Clear search and filters
+            </Button>
+          </EmptyState>
+        )}
         {docs.data?.length === 0 && pending.length === 0 && (
           <EmptyState icon={<FileText className="h-8 w-8" />} title="No documents yet">
             Upload a discharge summary (PDF or DOCX) to start a verification job.
@@ -158,7 +247,7 @@ function DocumentRow({ d }: { d: DocumentDto }) {
               <FileText className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-900">{d.filename}</p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-600">
                   {formatDateTime(d.createdAt)} · {formatBytes(d.sizeBytes)} · vs{' '}
                   {d.reference.title} rev. {d.reference.versionLabel}
                 </p>
@@ -166,7 +255,7 @@ function DocumentRow({ d }: { d: DocumentDto }) {
             </div>
             <div className="flex items-center gap-2">
               {job?.status === 'running' && job.currentStage && (
-                <span className="text-xs text-slate-500">{STAGE_LABELS[job.currentStage]}</span>
+                <span className="text-xs text-slate-600">{STAGE_LABELS[job.currentStage]}</span>
               )}
               {job && <JobStatusBadge status={job.status} />}
             </div>
