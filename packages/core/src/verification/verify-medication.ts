@@ -273,11 +273,24 @@ export async function verifyMedication(
   };
 }
 
+const EXCLUSION_RE =
+  /\b(contraindicat\w*|not (?:be )?(?:used|indicated|recommended|approved)|not for\b|avoid\w*|do not|should not|must not|never|only (?:for|in|when|if))/i;
+
+/**
+ * An indication conflict needs exclusion language: the Contraindications field, or a quote that limits
+ * or forbids use ("not for", "avoid", "only in", "contraindicated"). Absence from a list is not enough.
+ */
+export function statesExclusion(chunk: ChunkLike, quote: string | null): boolean {
+  if (/contraindication/i.test(chunk.fieldLabel ?? '')) return true;
+  return EXCLUSION_RE.test(quote ?? '');
+}
+
 /**
  * Merge deterministic and LLM per-field judgements.
  * - Deterministic conflict with a validated quote is authoritative.
  * - High-confidence deterministic "consistent" outranks an LLM conflict (noted in the explanation).
- * - Otherwise an LLM conflict counts only if its quote validates in a passage of the matched monograph.
+ * - Otherwise an LLM conflict counts only if its quote validates in a passage of the matched monograph;
+ *   an indication conflict additionally needs exclusion language (see statesExclusion).
  * - Unverifiable LLM claims are kept visible as 'unknown' (rejected evidence), never as findings.
  */
 export function mergeFindings(
@@ -349,6 +362,21 @@ export function mergeFindings(
           ? ' (The model suggested a conflict here, but the deterministic check of the cited passage did not confirm it.)'
           : '';
       out.push(fromDet(l?.verdict === 'consistent' ? 'both' : 'deterministic', note));
+    } else if (
+      l &&
+      l.verdict === 'conflict' &&
+      lValid &&
+      field === 'indication' &&
+      !statesExclusion(lPassage!.chunk, l.quote)
+    ) {
+      // An indication list is not exhaustive: a use the digest does not name is not contradicted by it.
+      out.push(
+        fromLlm(
+          'not_addressed',
+          'low',
+          ' — not counted as a conflict: the cited passage lists indications but does not exclude or contraindicate this use.',
+        ),
+      );
     } else if (l && l.verdict === 'conflict' && lValid) {
       out.push(fromLlm('conflict', 'medium'));
     } else if (l && l.verdict === 'conflict') {

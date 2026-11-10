@@ -87,8 +87,8 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-10): GitHub Actions green on `main`; 44 unit + 42 integration + 4 Playwright pass locally;
-  no live-OpenAI evaluation yet (account needs credit).
+- Status (2026-11-10): GitHub Actions green on `main`; 46 unit + 42 integration + 4 Playwright pass locally;
+  live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
 - `LocalEmbeddingProvider` retries the first model download and never caches a failed load.
@@ -117,10 +117,12 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
 5. Deterministic checks for numeric/time constraints; the LLM interprets nuance and explains, using only retrieved passages.
    Monograph rules are parsed **deterministically at index time** (`packages/core/src/rules/monograph-rules.ts`), each with
    a verbatim quote, stored in `reference_monographs.rules` — no LLM in reference indexing.
-   A deterministic conflict with a validated quote is authoritative; an LLM-only conflict counts only if its quote validates.
+   A deterministic conflict with a validated quote is authoritative; an LLM-only conflict counts only if its quote validates
+   (and, for indication, only if the quote states an exclusion/restriction — absence from the list is not a conflict).
 6. **Quote validation**: every citation's quote must appear (whitespace/quote-normalized) in the cited chunk, and the chunk
    must belong to the matched monograph (or the coverage note for unsupported). Invalid evidence is dropped/marked, never shown as valid.
-7. Summary and critical points use **only the primary document**; every critical point has page + validated quote. Preserve
+7. Summary and critical points use **only the primary document** (table rows are shown to the model as `a | b`; quote
+   matching treats `|` as whitespace); every critical point has page + validated quote. Preserve
    internal discrepancies (e.g. two-week vs 8-week psychiatry follow-up) instead of smoothing them. Formulary corrections
    appear only in verification results, never rewritten into primary-document content.
 8. Missing/ambiguous extracted values are `null` with a flag — never guessed.

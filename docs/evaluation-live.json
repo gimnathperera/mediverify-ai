@@ -1,0 +1,399 @@
+{
+  "generatedAt": "2026-11-10T15:08:57.306Z",
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-5.4-mini",
+    "mode": "LIVE model inference"
+  },
+  "embeddingModel": "Xenova/bge-small-en-v1.5",
+  "topK": 6,
+  "identityGate": {
+    "positiveAccuracy": "100.0%",
+    "negativeAccuracy": "100.0%",
+    "positives": [
+      {
+        "drug": "Velantine",
+        "matched": "Velantine",
+        "ok": true
+      },
+      {
+        "drug": "Cordizem-XR",
+        "matched": "Cordizem-XR",
+        "ok": true
+      },
+      {
+        "drug": "Pravoxil",
+        "matched": "Pravoxil",
+        "ok": true
+      },
+      {
+        "drug": "Etrazolam",
+        "matched": "Etrazolam",
+        "ok": true
+      },
+      {
+        "drug": "Quintaxin",
+        "matched": "Quintaxin",
+        "ok": true
+      }
+    ],
+    "negatives": [
+      {
+        "drug": "Pranixol",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Velantina",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Quintaxol",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Etrazepam",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Floranex",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Sumavastin",
+        "matched": null,
+        "ok": true
+      },
+      {
+        "drug": "Cordizem",
+        "matched": null,
+        "ok": true
+      }
+    ]
+  },
+  "naiveVectorRetrieval": {
+    "note": "Ungated similarity over all chunks — diagnostic only, NOT used for identity.",
+    "hitAt1": "100.0%",
+    "hitAt3": "100.0%",
+    "rows": [
+      {
+        "query": "Velantine",
+        "expected": "Velantine",
+        "top1": "Velantine",
+        "top1Score": 0.855,
+        "hit1": true,
+        "hit3": true
+      },
+      {
+        "query": "Cordizem-XR",
+        "expected": "Cordizem-XR",
+        "top1": "Cordizem-XR",
+        "top1Score": 0.888,
+        "hit1": true,
+        "hit3": true
+      },
+      {
+        "query": "Pravoxil",
+        "expected": "Pravoxil",
+        "top1": "Pravoxil",
+        "top1Score": 0.871,
+        "hit1": true,
+        "hit3": true
+      },
+      {
+        "query": "Etrazolam",
+        "expected": "Etrazolam",
+        "top1": "Etrazolam",
+        "top1Score": 0.88,
+        "hit1": true,
+        "hit3": true
+      },
+      {
+        "query": "Quintaxin",
+        "expected": "Quintaxin",
+        "top1": "Quintaxin",
+        "top1Score": 0.861,
+        "hit1": true,
+        "hit3": true
+      },
+      {
+        "query": "Pranixol",
+        "expected": null,
+        "top1": "Pravoxil",
+        "top1Score": 0.818,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Velantina",
+        "expected": null,
+        "top1": "Velantine",
+        "top1Score": 0.771,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Quintaxol",
+        "expected": null,
+        "top1": "Quintaxin",
+        "top1Score": 0.827,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Etrazepam",
+        "expected": null,
+        "top1": "Etrazolam",
+        "top1Score": 0.85,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Floranex",
+        "expected": null,
+        "top1": "Floranase",
+        "top1Score": 0.833,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Sumavastin",
+        "expected": null,
+        "top1": "Sumavast",
+        "top1Score": 0.826,
+        "hit1": null,
+        "hit3": null
+      },
+      {
+        "query": "Cordizem",
+        "expected": null,
+        "top1": "Cordizem-XR",
+        "top1Score": 0.871,
+        "hit1": null,
+        "hit3": null
+      }
+    ]
+  },
+  "targetedRetrieval": {
+    "meanRecallAt3": "0.833",
+    "meanRecallAtK": "1.000",
+    "allPassagesFromMatchedMonograph": true,
+    "rows": [
+      {
+        "drug": "Velantine",
+        "expectedFields": ["Standard adult dose"],
+        "retrieved": [
+          "Standard adult dose",
+          "Maximum dose",
+          "Indication",
+          "Common adverse effects",
+          "Monitoring",
+          "Drug class"
+        ],
+        "recallAt3": 1,
+        "recallAtK": 1,
+        "allFromMatchedMonograph": true
+      },
+      {
+        "drug": "Cordizem-XR",
+        "expectedFields": ["Standard adult dose"],
+        "retrieved": [
+          "Standard adult dose",
+          "Maximum dose",
+          "Indication",
+          "Prescribing notes",
+          "Significant interactions",
+          "Monitoring"
+        ],
+        "recallAt3": 1,
+        "recallAtK": 1,
+        "allFromMatchedMonograph": true
+      },
+      {
+        "drug": "Pravoxil",
+        "expectedFields": ["Prescribing notes", "Standard adult dose"],
+        "retrieved": [
+          "Standard adult dose",
+          "Maximum dose",
+          "Contraindications",
+          "Prescribing notes",
+          "Monitoring",
+          "Common adverse effects"
+        ],
+        "recallAt3": 0.5,
+        "recallAtK": 1,
+        "allFromMatchedMonograph": true
+      },
+      {
+        "drug": "Etrazolam",
+        "expectedFields": ["Prescribing notes"],
+        "retrieved": [
+          "Standard adult dose",
+          "Maximum dose",
+          "Prescribing notes",
+          "Indication",
+          "Monitoring",
+          "Common adverse effects"
+        ],
+        "recallAt3": 1,
+        "recallAtK": 1,
+        "allFromMatchedMonograph": true
+      },
+      {
+        "drug": "Quintaxin",
+        "expectedFields": ["Standard adult dose", "Prescribing notes", "Monitoring"],
+        "retrieved": [
+          "Standard adult dose",
+          "Maximum dose",
+          "Prescribing notes",
+          "Monitoring",
+          "Indication",
+          "Drug class"
+        ],
+        "recallAt3": 0.6666666666666666,
+        "recallAtK": 1,
+        "allFromMatchedMonograph": true
+      }
+    ]
+  },
+  "endToEnd": {
+    "outcome": "completed",
+    "jobError": null,
+    "durationMs": 30862,
+    "medicationsExtracted": 6,
+    "statusAccuracy": "100.0%",
+    "conflictFieldPrecision": "100.0%",
+    "conflictFieldRecall": "100.0%",
+    "extractionAccuracyByField": {
+      "dose": "100.0%",
+      "route": "100.0%",
+      "frequency": "100.0%",
+      "timing": "100.0%",
+      "duration": "100.0%",
+      "indication": "100.0%",
+      "sourcePage": "100.0%"
+    },
+    "citationValidity": "100.0%",
+    "decisiveFindingsWithValidEvidence": "100.0%",
+    "criticalPointQuoteValidity": "100.0%",
+    "criticalPoints": 11,
+    "discrepancyPreservedInCriticalPoints": "100.0%",
+    "discrepancyPreservedInSummary": "100.0%",
+    "discrepancies": [
+      {
+        "topic": "psychiatry follow-up timing",
+        "inCriticalPoints": true,
+        "inSummary": true
+      }
+    ],
+    "distractorMonographFindings": 0,
+    "perMedication": [
+      {
+        "drug": "Velantine",
+        "expectedStatus": "supported",
+        "actualStatus": "supported",
+        "statusOk": true,
+        "expectedConflicts": [],
+        "actualConflicts": [],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      },
+      {
+        "drug": "Cordizem-XR",
+        "expectedStatus": "contradicted",
+        "actualStatus": "contradicted",
+        "statusOk": true,
+        "expectedConflicts": ["dose"],
+        "actualConflicts": ["dose"],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      },
+      {
+        "drug": "Pravoxil",
+        "expectedStatus": "contradicted",
+        "actualStatus": "contradicted",
+        "statusOk": true,
+        "expectedConflicts": ["timing"],
+        "actualConflicts": ["timing"],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      },
+      {
+        "drug": "Etrazolam",
+        "expectedStatus": "contradicted",
+        "actualStatus": "contradicted",
+        "statusOk": true,
+        "expectedConflicts": ["duration"],
+        "actualConflicts": ["duration"],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      },
+      {
+        "drug": "Pranixol",
+        "expectedStatus": "unsupported",
+        "actualStatus": "unsupported",
+        "statusOk": true,
+        "expectedConflicts": [],
+        "actualConflicts": [],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      },
+      {
+        "drug": "Quintaxin",
+        "expectedStatus": "supported",
+        "actualStatus": "supported",
+        "statusOk": true,
+        "expectedConflicts": [],
+        "actualConflicts": [],
+        "extraction": {
+          "dose": true,
+          "route": true,
+          "frequency": true,
+          "timing": true,
+          "duration": true,
+          "indication": true,
+          "sourcePage": true
+        }
+      }
+    ]
+  }
+}

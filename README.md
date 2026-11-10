@@ -342,7 +342,10 @@ failure modes are in [docs/evaluation.md](docs/evaluation.md).
 
 End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
 citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
-`pnpm eval:live` repeats the run with the real model; its results are not in yet (see Trade-offs).
+`pnpm eval:live` repeats the run with real OpenAI inference (`gpt-5.4-mini`). The final live run scored the same as
+the fixture run, and also kept the document's internal follow-up discrepancy. The 8 live runs exposed three
+problems the fixtures could not show, all fixed: a lost discrepancy, a table-quote validation bug, and an indication
+false positive. Details are in [docs/evaluation.md](docs/evaluation.md#live-model-runs-2026-11-10-llm--openai-gpt-54-mini-reasoning-effort-low).
 
 ### Tracing one document through the logs
 
@@ -514,8 +517,9 @@ well covered; React components are covered only by the Playwright smoke test, wh
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 44 unit, 42 integration and 4
-> Playwright tests pass (coverage thresholds enforced). The manual live-model evaluation job has not run yet.
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 46 unit, 42 integration and 4
+> Playwright tests pass (coverage thresholds enforced). Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
+> the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
@@ -532,12 +536,13 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 
 ## Trade-offs and known limitations
 
-- **No live model measurements yet.** Every reported number comes from fixture mode. Real-OpenAI extraction and summary
-  quality is unmeasured until `pnpm eval:live` runs with a key. The hand-authored fixtures test the plumbing and
-  controls, not model quality.
+- **Small live evaluation set.** Live numbers come from one document (8 full runs plus targeted runs). Model output
+  varies between runs; one run in eight produced an indication false positive, which is now guarded in code. A larger
+  synthetic set is the next step.
 - **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start. If the
   model can't tell whether it's a new start, confidence drops to low.
-- **Indication checks are LLM-only** (semantic). The deterministic checks don't judge indications.
+- **Indication checks are LLM-only** (semantic). The deterministic checks don't judge indications. A model-only
+  indication conflict counts only when the cited text excludes or restricts the use; absence from the list does not count.
 - **Parsing limits.** No OCR, so scanned PDFs fail with `PARSE_FAILED`. Rotated tables and tables without a first
   column per row are not handled.
 - **Monograph rule parsing** uses patterns fitted to this digest's phrasing. A differently worded formulary would need
@@ -546,11 +551,19 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Single region, single worker by default.** Scale by adding worker replicas; the claim is `SKIP LOCKED`-safe.
 - **Image size.** The worker image is large because of LibreOffice and the baked model.
 - **Storage.** File bytes live in Postgres, which is fine at a 10 MB cap. Use object storage at scale.
+- **Data lifecycle.** There is no endpoint to delete a document, and no retention job for old documents, job events
+  or expired sessions.
+- **Rate limiting is per API process** (in-memory). With several API replicas it needs a shared store (Postgres
+  or Redis). The daily job limit is already enforced in Postgres.
+- **The document list shows the latest 50**, with no pagination.
+- **Observability is logs only.** There are no metrics (queue depth, stage latency, token cost) and no tracing.
+- **References are loaded by the seed script.** The schema is versioned, but there is no admin API to upload, index or
+  select a new formulary version.
 
 ## With more time
 
-1. Run `pnpm eval:live` and publish the live numbers.
-2. Build a larger synthetic evaluation set: more documents and adversarial look-alikes.
+1. Build a larger synthetic evaluation set (more documents, adversarial look-alikes), and run it live on a schedule.
+2. Add a delete endpoint with a retention job, metrics (Prometheus or OpenTelemetry) and a shared rate limiter.
 3. Add a reviewer feedback loop: accept or override a finding, with an audit trail.
 4. Add OCR fallback and HNSW indexing for larger corpora.
 5. Make reference versions diffable, and re-verify on a new version.

@@ -95,5 +95,15 @@
       "evidenceFields": ["Standard adult dose", "Prescribing notes", "Monitoring"]
     }
   ],
-  "distractorMonographs": ["Mirosartan", "Sumavast", "Floranase"]
+  "distractorMonographs": ["Mirosartan", "Sumavast", "Floranase"],
+  "documentDiscrepancies": [
+    {
+      "topic": "psychiatry follow-up timing",
+      "quoteNeedles": ["two weeks", "8-week mark"],
+      "summaryPatterns": [
+        "two weeks|2 weeks|14 days",
+        "8[- ]week|eight[- ]week|8 weeks|eight weeks"
+      ]
+    }
+  ]
 }

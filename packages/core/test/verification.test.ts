@@ -59,6 +59,12 @@ describe('quote validation', () => {
     expect(quoteAppearsIn('20 mg orally   once daily, AT BEDTIME.', src)).toBe(true);
     expect(quoteAppearsIn("Pravoxil's pharmacokinetics favor evening", src)).toBe(true);
   });
+  it('treats table cell separators shown in the prompt as whitespace', () => {
+    // renderForPrompt shows table rows as `| a | b |`; page text joins the cells with spaces.
+    const row = 'Etrazolam 0.5 mg PO twice daily 8 weeks Acute anxiety, sleep disturbance';
+    expect(quoteAppearsIn('Etrazolam | 0.5 mg | PO twice daily | 8 weeks |', row)).toBe(true);
+    expect(quoteAppearsIn('Etrazolam | 1 mg | PO twice daily', row)).toBe(false);
+  });
   it('rejects fabricated or paraphrased quotes', () => {
     expect(quoteAppearsIn('20 mg orally once daily in the morning', src)).toBe(false);
     expect(quoteAppearsIn('take at night', src)).toBe(false);
@@ -269,6 +275,44 @@ describe('merge: hallucination control', () => {
       quoteValid: true,
       chunkId: 'c-std',
     });
+  });
+
+  it('does not count an indication merely absent from the monograph list as a conflict', () => {
+    const ind: ChunkLike = {
+      id: 'c-ind',
+      monographId: 'm1',
+      fieldLabel: 'Indication',
+      page: 8,
+      text: 'Indication: Treatment of gastroesophageal reflux disease and peptic ulcer disease. Not for use in children under 12.',
+    };
+    const llmSays = (quote: string) => ({
+      overall_explanation: '',
+      fields: [
+        {
+          field: 'indication' as const,
+          verdict: 'conflict' as const,
+          prescribed: 'GERD prophylaxis',
+          reference_constraint: 'GERD treatment',
+          explanation: 'not listed',
+          passage_id: 'P1',
+          quote,
+        },
+      ],
+    });
+    const notListed = mergeFindings(
+      [],
+      llmSays('Treatment of gastroesophageal reflux disease and peptic ulcer disease.'),
+      [{ id: 'P1', chunk: ind }],
+      [ind],
+    );
+    expect(notListed[0]).toMatchObject({ verdict: 'not_addressed', quoteValid: true });
+    const excluded = mergeFindings(
+      [],
+      llmSays('Not for use in children under 12.'),
+      [{ id: 'P1', chunk: ind }],
+      [ind],
+    );
+    expect(excluded[0]).toMatchObject({ verdict: 'conflict', quoteValid: true });
   });
 
   it('re-anchors a valid quote when the model mislabels the passage id', () => {
