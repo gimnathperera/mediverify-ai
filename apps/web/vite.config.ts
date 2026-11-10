@@ -12,5 +12,10 @@ export default defineConfig({
       '/api': { target: process.env.API_URL ?? 'http://localhost:3001', changeOrigin: false },
     },
   },
-  build: { sourcemap: true, chunkSizeWarningLimit: 1500 },
+  build: {
+    // Source maps would publish the full frontend source from nginx. Opt in for local debugging
+    // builds with VITE_SOURCEMAP=true; production images ship none.
+    sourcemap: process.env.VITE_SOURCEMAP === 'true',
+    chunkSizeWarningLimit: 600,
+  },
 });

@@ -21,6 +21,7 @@ export const config = {
   retryBaseDelaySeconds: num('RETRY_BASE_DELAY_SECONDS', 5),
   retrievalTopK: num('RETRIEVAL_TOP_K', 6),
   retrievalMinScore: num('RETRIEVAL_MIN_SCORE', 0.35),
+  verifyConcurrency: num('VERIFY_CONCURRENCY', 3),
   heartbeatFile: process.env.WORKER_HEARTBEAT_FILE ?? '/tmp/worker.heartbeat',
   sofficeBin: process.env.SOFFICE_BIN,
 };

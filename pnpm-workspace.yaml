@@ -8,3 +8,8 @@ onlyBuiltDependencies:
   - protobufjs
   - sharp
   - '@node-rs/argon2'
+overrides:
+  # @huggingface/transformers 3.x pins sharp ^0.34, which has libvips/libheif/librsvg CVEs
+  # (fixed in 0.35.5). Only text embeddings are used, never image decoding; the override is
+  # covered by the embedding-model load in the integration tests and the worker image.
+  sharp: 0.35.5

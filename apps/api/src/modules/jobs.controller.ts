@@ -6,8 +6,10 @@ import type { Logger } from 'pino';
 
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser, type AuthedRequest } from '../common/auth.js';
+import { assertJobQuota } from '../common/quota.js';
 import { uuidParam } from '../common/zod.js';
-import { LOGGER, PG_POOL } from '../tokens.js';
+import type { AppConfig } from '../config.js';
+import { APP_CONFIG, LOGGER, PG_POOL } from '../tokens.js';
 
 import { EventsHub } from './events-hub.js';
 
@@ -20,6 +22,7 @@ export class JobsController {
     @Inject(PG_POOL) private readonly pool: pg.Pool,
     @Inject(EventsHub) private readonly hub: EventsHub,
     @Inject(LOGGER) private readonly log: Logger,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   @Get(':id')
@@ -39,9 +42,11 @@ export class JobsController {
   @Post(':id/retry')
   @HttpCode(202)
   async retry(@Param('id') id: string, @CurrentUser() user: UserDto) {
-    const out = await withTransaction(this.pool, (c) =>
-      jobsRepo.createRetryJob(c, uuidParam(id, 'Job'), user.id),
-    );
+    const jobId = uuidParam(id, 'Job');
+    const out = await withTransaction(this.pool, async (c) => {
+      await assertJobQuota(c, user.id, this.config.dailyJobLimit);
+      return jobsRepo.createRetryJob(c, jobId, user.id);
+    });
     if (out.kind === 'not_found') throw ApiError.notFound('Job');
     if (out.kind === 'not_retryable')
       throw new ApiError(409, 'JOB_NOT_RETRYABLE', 'Only failed jobs can be retried');

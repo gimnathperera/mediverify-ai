@@ -9,6 +9,10 @@ export interface AppConfig {
   llmModel: string;
   llmConfigured: boolean;
   maxJobAttempts: number;
+  /** Self-service signup; turn off for a hosted demo backed by a paid model key. */
+  signupEnabled: boolean;
+  /** Pipeline runs (uploads + retries) per user per rolling 24 h; 0 = unlimited. */
+  dailyJobLimit: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -27,5 +31,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     llmModel: provider === 'fixture' ? 'fixture' : (env.OPENAI_MODEL ?? 'gpt-5.4-mini'),
     llmConfigured: provider === 'fixture' || Boolean(env.OPENAI_API_KEY),
     maxJobAttempts: Number(env.JOB_MAX_ATTEMPTS ?? 3),
+    signupEnabled: env.ALLOW_SIGNUP !== 'false',
+    dailyJobLimit: Number(env.DAILY_JOB_LIMIT ?? 20),
   };
 }

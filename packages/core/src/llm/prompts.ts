@@ -19,7 +19,10 @@ Rules:
 - 120–200 words, plain language, neutral tone, third person. No bullet lists.
 - Mention the reason for admission, main diagnoses, discharge medications by name, and the follow-up plan.
 - Do not judge whether prescriptions are correct; that is done elsewhere.
-- If the document states conflicting information, mention both versions rather than choosing one.`;
+- If the document states conflicting information, mention both versions rather than choosing one.
+- Before writing, compare every follow-up appointment, lab test and treatment course length across ALL
+  sections (hospital course, regimen notes, counseling, follow-up list). Where the same item is given
+  different timings in different places, say so explicitly and state both timings.`;
 
 export function summaryUser(doc: string): string {
   return `Summarize this discharge document.\n${wrapDocument(doc)}`;
@@ -33,9 +36,16 @@ lengths (duration_limit), follow-up appointments and lab tests with their timing
 precautions such as driving or not stopping abruptly (safety_precaution), and internal inconsistencies
 in the document itself, e.g. two different dates for the same follow-up (document_discrepancy — cite BOTH
 conflicting quotes). Use 'other' only when nothing else fits.
+Procedure: first collect every follow-up appointment, lab test and treatment course length mentioned
+ANYWHERE in the document (hospital course, regimen notes, medication counseling, follow-up section) and
+compare all mentions of the same item. Each item given different timings or values in different places is
+a document_discrepancy point (in addition to the ordinary points), citing one quote for each version.
+A point that says two mentions disagree MUST use category document_discrepancy, never follow_up.
 Rules:
 - Each point must be supported by one or more verbatim quotes (exact contiguous text, no ellipses) with the
-  page number shown by the nearest preceding [[PAGE n]] marker.
+  page number shown by the nearest preceding [[PAGE n]] marker. Keep each quote to one short span (about
+  5–25 words) copied character for character from a single clause; never join words from different
+  clauses or sentences.
 - Do NOT add advice, warnings or corrections that are not in the document, and do not compare against any
   external reference. Restate the document's instruction faithfully even if it might be wrong.
 - severity: high = could cause harm if missed (serious side effects, discrepancies affecting care, critical
@@ -80,6 +90,8 @@ Rules:
 - For consistent/conflict you MUST give passage_id and a verbatim quote (exact contiguous text, no
   ellipses) from that passage. If you cannot quote support, use not_addressed.
 - A prescription not mentioning something the monograph recommends is not by itself a conflict.
+- Indication: a conflict only when the passages exclude, restrict or contraindicate that use. A monograph's
+  list of indications is not exhaustive; an indication worded differently or not named is not_addressed.
 - Consider prescribing context provided (e.g. a new start) when the monograph specifies starting doses
   and titration intervals.
 - Explanations: one or two sentences, factual, citing the constraint.`;

@@ -22,11 +22,14 @@ import {
   type ChunkLike,
 } from '../verification/verify-medication.js';
 
+import { mapWithConcurrency } from './concurrency.js';
 import { ensureReferenceIndexed } from './reference-index.js';
 
 export interface PipelineConfig {
   retrievalTopK: number;
   retrievalMinScore: number;
+  /** Medications verified in parallel (each makes one model call). Default 3. */
+  verifyConcurrency?: number | undefined;
   sofficeBin?: string | undefined;
 }
 
@@ -293,9 +296,10 @@ const verified: StageFn = async (deps, state) => {
   });
   const meds = await resultsRepo.getMedications(pool, state.ctx.jobId);
   const prefix = await state.fixturePrefix;
-  const results: resultsRepo.VerificationInput[] = [];
   const counts: Record<string, number> = {};
-  for (const med of meds) {
+  // Medications are independent: verify a few at once (bounded, so the model provider's rate limits
+  // and the DB pool are respected). Results keep table order.
+  const results = await mapWithConcurrency(meds, config.verifyConcurrency ?? 3, async (med) => {
     const out = await verifyMedication(
       med,
       monographs,
@@ -364,8 +368,8 @@ const verified: StageFn = async (deps, state) => {
       medication: med.drugName,
       status: out.status,
     });
-    results.push({ medicationId: med.id, ...out });
-  }
+    return { medicationId: med.id, ...out } satisfies resultsRepo.VerificationInput;
+  });
   return {
     detail:
       Object.entries(counts)

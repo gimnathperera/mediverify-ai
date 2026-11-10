@@ -6,15 +6,19 @@ export function sha256Hex(data: string | Buffer | Uint8Array): string {
 
 /** Collapse whitespace and normalize typographic punctuation (used for quote matching). */
 export function normalizeForMatch(s: string): string {
-  return s
-    .normalize('NFKC')
-    .replace(/[‘’‚‛′]/g, "'")
-    .replace(/[“”„‟″]/g, '"')
-    .replace(/[‐-―−]/g, '-')
-    .replace(/[•▪◦●]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  return (
+    s
+      .normalize('NFKC')
+      .replace(/[‘’‚‛′]/g, "'")
+      .replace(/[“”„‟″]/g, '"')
+      .replace(/[‐-―−]/g, '-')
+      .replace(/[•▪◦●]/g, ' ')
+      // Table rows are shown to the model as `| a | b |` but stored as space-joined cells.
+      .replace(/\|/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+  );
 }
 
 const ELLIPSIS = /\s*(?:\.\.\.|…)\s*/;

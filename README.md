@@ -12,6 +12,15 @@ Every verdict comes with verbatim, validated evidence from the reference.
 > **Fictional data, demo only.** The bundled documents are fictional. Nothing here is clinical advice. The UI shows this
 > disclaimer at all times.
 
+![Document view: the discharge summary on the left; summary, verdict counts and per-medication findings on the right](docs/screenshots/document-view.png)
+
+| Citation with a verified quote                                                                                                                       | Deep link into the formulary                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ![Citation sheet for Pravoxil timing: monograph, section, field, page and the quote marked as verified in the source](docs/screenshots/citation.png) | ![The reference PDF opened at page 5 with the cited sentence highlighted](docs/screenshots/reference-deep-link.png) |
+
+Screenshots are from fixture mode (see the banner); [`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts)
+recaptures them from a running stack.
+
 ---
 
 ## Quick start (≈ 5–10 min, most of it the first image build)
@@ -76,6 +85,23 @@ without `OPENAI_API_KEY`.
 **Getting an OpenAI key:** sign in at platform.openai.com, add API credit under _Settings → Billing_ (separate from a
 ChatGPT subscription; consider a monthly usage limit), then _API keys → Create new secret key_. Put it in `.env` as
 `OPENAI_API_KEY=` and never commit it (`.env` is git-ignored and the pre-commit secret guard blocks keys).
+
+### Configuration
+
+All settings are environment variables with safe defaults; [.env.example](.env.example) lists them with comments.
+
+| Setting                                            | Default                       | Purpose                                                                                           |
+| -------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER` / `OPENAI_API_KEY` / `OPENAI_MODEL` | `openai` / – / `gpt-5.4-mini` | Model provider (`fixture` for the key-less demo)                                                  |
+| `LLM_TIMEOUT_MS` / `LLM_MAX_RETRIES`               | `90000` / `3`                 | Per-call timeout; retries for 429 rate limits, 5xx and network errors                             |
+| `ALLOW_SIGNUP`                                     | `true`                        | Set `false` for a hosted demo on a paid key; seed users still sign in                             |
+| `DAILY_JOB_LIMIT`                                  | `20`                          | Pipeline runs (uploads + retries) per user per rolling 24 h; `0` = unlimited. Duplicates are free |
+| `COOKIE_SECURE`                                    | `false`                       | Set `true` behind HTTPS                                                                           |
+| `DUPLICATE_WINDOW_SECONDS`                         | `300`                         | Duplicate-upload window; `0` disables                                                             |
+| `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE`          | `6` / `0.35`                  | Passages retrieved per medication and the relevance floor (below it → `incomplete`)               |
+| `VERIFY_CONCURRENCY`                               | `3`                           | Medications verified in parallel per job                                                          |
+| `WORKER_CONCURRENCY`                               | `1`                           | Jobs per worker container; scale out with `docker compose up --scale worker=N`                    |
+| `STAGE_TIMEOUT_MS` / `JOB_MAX_ATTEMPTS`            | `180000` / `3`                | Per-stage limit; attempts before a job is marked failed                                           |
 
 ---
 
@@ -316,7 +342,10 @@ failure modes are in [docs/evaluation.md](docs/evaluation.md).
 
 End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
 citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
-`pnpm eval:live` repeats the run with the real model; its results are not in yet (see Trade-offs).
+`pnpm eval:live` repeats the run with real OpenAI inference (`gpt-5.4-mini`). The final live run scored the same as
+the fixture run, and also kept the document's internal follow-up discrepancy. The 8 live runs exposed three
+problems the fixtures could not show, all fixed: a lost discrepancy, a table-quote validation bug, and an indication
+false positive. Details are in [docs/evaluation.md](docs/evaluation.md#live-model-runs-2026-11-10-llm--openai-gpt-54-mini-reasoning-effort-low).
 
 ### Tracing one document through the logs
 
@@ -413,9 +442,15 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
   - Cookie: HttpOnly, SameSite=Strict; `Secure` is configurable for TLS deployments.
   - Mutating requests must carry an allowed `Origin`.
   - Web and API share an origin through the nginx/Vite proxy, so there is no CORS.
+- **Spending and abuse limits.** Sign-up can be switched off (`ALLOW_SIGNUP=false`); each user gets a rolling 24 h
+  budget of pipeline runs (`DAILY_JOB_LIMIT`, checked inside the job-creating transaction under a per-user lock),
+  and login/sign-up are rate-limited per IP. A hosted demo on a paid model key can't be drained by one account.
 - **Uploads.** Checked server-side for extension, magic bytes (`%PDF-`, or a DOCX zip containing `word/document.xml`)
   and size. Files are stored as `bytea` and never written to a public path. DOCX conversion runs LibreOffice with an
   isolated, throwaway profile and a timeout.
+- **No published source.** Production web images ship no source maps; the PDF viewer (react-pdf + pdf.js) is a
+  separate chunk loaded only when a document opens.
+- **Dependencies.** CI fails on high/critical advisories in production dependencies (`pnpm audit --prod`).
 - **Headers.** nginx sets CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options` and `Referrer-Policy`; the API also
   sets the last two.
 - **Secrets** come only from the environment. `.env` is git-ignored. A pre-commit secret guard and gitleaks run in CI.
@@ -428,9 +463,12 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 ## Testing and quality
 
 ```bash
-pnpm test:unit          # 30 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
-                        #           identity gate, quote validation, deterministic checks, merge controls, strict schemas, injection
-pnpm test:integration   # 40 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+pnpm test:unit          # 44 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
+                        #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
+                        #           injection, error classification, bounded concurrency, dependency pins, and the web
+                        #           app's live-progress reducer and upload validation
+pnpm test:integration   # 42 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+pnpm test:coverage      # both, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode
 pnpm eval               # retrieval + classification evaluation → numbers in docs/evaluation.md
 pnpm eval:live          # same with real OpenAI (needs OPENAI_API_KEY)
@@ -448,6 +486,10 @@ The integration tests break down as follows:
   live streaming.
 - **Worker reliability (6):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
   reaper, and zombie-lease protection.
+- **Deployment limits (2):** sign-up disabled, per-user daily run budget (duplicates free, retries counted).
+
+Coverage (unit + integration, 2026-11-10): 57.6% statements, 77.5% branches, 72.4% functions. Server-side code is
+well covered; React components are covered only by the Playwright smoke test, which is the main gap.
 
 **Tooling.**
 
@@ -475,8 +517,9 @@ The integration tests break down as follows:
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 33 unit, 40 integration and 4
-> Playwright tests pass. The manual live-model evaluation job has not run yet.
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 46 unit, 42 integration and 4
+> Playwright tests pass (coverage thresholds enforced). Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
+> the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
@@ -493,12 +536,13 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 
 ## Trade-offs and known limitations
 
-- **No live model measurements yet.** Every reported number comes from fixture mode. Real-OpenAI extraction and summary
-  quality is unmeasured until `pnpm eval:live` runs with a key. The hand-authored fixtures test the plumbing and
-  controls, not model quality.
+- **Small live evaluation set.** Live numbers come from one document (8 full runs plus targeted runs). Model output
+  varies between runs; one run in eight produced an indication false positive, which is now guarded in code. A larger
+  synthetic set is the next step.
 - **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start. If the
   model can't tell whether it's a new start, confidence drops to low.
-- **Indication checks are LLM-only** (semantic). The deterministic checks don't judge indications.
+- **Indication checks are LLM-only** (semantic). The deterministic checks don't judge indications. A model-only
+  indication conflict counts only when the cited text excludes or restricts the use; absence from the list does not count.
 - **Parsing limits.** No OCR, so scanned PDFs fail with `PARSE_FAILED`. Rotated tables and tables without a first
   column per row are not handled.
 - **Monograph rule parsing** uses patterns fitted to this digest's phrasing. A differently worded formulary would need
@@ -507,11 +551,19 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Single region, single worker by default.** Scale by adding worker replicas; the claim is `SKIP LOCKED`-safe.
 - **Image size.** The worker image is large because of LibreOffice and the baked model.
 - **Storage.** File bytes live in Postgres, which is fine at a 10 MB cap. Use object storage at scale.
+- **Data lifecycle.** There is no endpoint to delete a document, and no retention job for old documents, job events
+  or expired sessions.
+- **Rate limiting is per API process** (in-memory). With several API replicas it needs a shared store (Postgres
+  or Redis). The daily job limit is already enforced in Postgres.
+- **The document list shows the latest 50**, with no pagination.
+- **Observability is logs only.** There are no metrics (queue depth, stage latency, token cost) and no tracing.
+- **References are loaded by the seed script.** The schema is versioned, but there is no admin API to upload, index or
+  select a new formulary version.
 
 ## With more time
 
-1. Run `pnpm eval:live` and publish the live numbers.
-2. Build a larger synthetic evaluation set: more documents and adversarial look-alikes.
+1. Build a larger synthetic evaluation set (more documents, adversarial look-alikes), and run it live on a schedule.
+2. Add a delete endpoint with a retention job, metrics (Prometheus or OpenTelemetry) and a shared rate limiter.
 3. Add a reviewer feedback loop: accept or override a finding, with an audit trail.
 4. Add OCR fallback and HNSW indexing for larger corpora.
 5. Make reference versions diffable, and re-verify on a new version.

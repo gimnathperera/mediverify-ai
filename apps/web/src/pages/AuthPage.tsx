@@ -6,7 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router';
 
 import { Alert, Button, Card, Input, Label } from '../components/ui/primitives';
 import { api, ApiRequestError } from '../lib/api';
-import { qk } from '../lib/queries';
+import { qk, useConfig } from '../lib/queries';
 
 export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const qc = useQueryClient();
@@ -19,6 +19,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const isLogin = mode === 'login';
+  // Hidden only once the server says so; a failed config fetch keeps the default UI.
+  const signupEnabled = useConfig().data?.signupEnabled !== false;
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,42 +56,49 @@ export function AuthPage({ mode }: { mode: 'login' | 'signup' }) {
         <p className="mt-1 text-sm text-slate-500">
           Verify discharge prescriptions against an institutional formulary.
         </p>
-        <form className="mt-5 space-y-4" onSubmit={(e) => void submit(e)} noValidate>
-          <div className="space-y-1.5">
-            <Label htmlFor={emailId}>Email</Label>
-            <Input
-              id={emailId}
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor={pwId}>Password</Label>
-            <Input
-              id={pwId}
-              type="password"
-              autoComplete={isLogin ? 'current-password' : 'new-password'}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-            {!isLogin && <p className="text-xs text-slate-500">At least 8 characters.</p>}
-          </div>
-          {error && (
-            <Alert tone="danger" title={isLogin ? 'Sign-in failed' : 'Sign-up failed'}>
-              {error}
-            </Alert>
-          )}
-          <Button type="submit" className="w-full" loading={busy}>
-            {isLogin ? 'Sign in' : 'Create account'}
-          </Button>
-        </form>
+        {!isLogin && !signupEnabled ? (
+          <Alert tone="info" title="Sign-up is disabled" className="mt-5">
+            This deployment doesn&apos;t accept new accounts. Use the reviewer credentials from the
+            README.
+          </Alert>
+        ) : (
+          <form className="mt-5 space-y-4" onSubmit={(e) => void submit(e)} noValidate>
+            <div className="space-y-1.5">
+              <Label htmlFor={emailId}>Email</Label>
+              <Input
+                id={emailId}
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={pwId}>Password</Label>
+              <Input
+                id={pwId}
+                type="password"
+                autoComplete={isLogin ? 'current-password' : 'new-password'}
+                required
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              {!isLogin && <p className="text-xs text-slate-500">At least 8 characters.</p>}
+            </div>
+            {error && (
+              <Alert tone="danger" title={isLogin ? 'Sign-in failed' : 'Sign-up failed'}>
+                {error}
+              </Alert>
+            )}
+            <Button type="submit" className="w-full" loading={busy}>
+              {isLogin ? 'Sign in' : 'Create account'}
+            </Button>
+          </form>
+        )}
         <p className="mt-4 text-center text-sm text-slate-600">
-          {isLogin ? (
+          {isLogin && !signupEnabled ? null : isLogin ? (
             <>
               No account?{' '}
               <Link className="text-brand-700 hover:underline" to="/signup">

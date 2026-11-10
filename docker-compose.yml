@@ -9,6 +9,9 @@ x-llm-env: &llm-env
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
   OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
   OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
+  LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-90000}
+  LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-3}
+  JOB_MAX_ATTEMPTS: ${JOB_MAX_ATTEMPTS:-3}
 
 services:
   db:
@@ -49,6 +52,9 @@ services:
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8088}
       DUPLICATE_WINDOW_SECONDS: ${DUPLICATE_WINDOW_SECONDS:-300}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      DAILY_JOB_LIMIT: ${DAILY_JOB_LIMIT:-20}
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
@@ -69,6 +75,9 @@ services:
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Xenova/bge-small-en-v1.5}
       RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-6}
       RETRIEVAL_MIN_SCORE: ${RETRIEVAL_MIN_SCORE:-0.35}
+      VERIFY_CONCURRENCY: ${VERIFY_CONCURRENCY:-3}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+      STAGE_TIMEOUT_MS: ${STAGE_TIMEOUT_MS:-180000}
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:

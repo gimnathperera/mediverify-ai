@@ -30,6 +30,8 @@ export class HealthController {
       llmConfigured: this.config.llmConfigured,
       fixtureMode: this.config.llmProvider === 'fixture',
       maxUploadBytes: MAX_UPLOAD_BYTES,
+      signupEnabled: this.config.signupEnabled,
+      dailyJobLimit: this.config.dailyJobLimit,
       disclaimer: DEMO_DISCLAIMER,
     };
   }

@@ -23,7 +23,7 @@ Living checklist. Status: ☐ todo · ◐ in progress · ☑ done (verified by a
 | MUST   | Tests: golden verification, authz, rollback, failure, reconnect                         | ☑      | 30 unit + 40 integration passing locally                                                                                    |
 | MUST   | Single docker-compose, versioned migrations, seed, README < 10 min                      | ☑      | Stack came up healthy from `docker compose up --build`; README written                                                      |
 | SHOULD | Lint/format/strict TS, Husky hooks, GitHub Actions CI                                   | ☑      | GitHub Actions green on `main` (quality, tests, Compose + Playwright, secret scan); Husky hooks verified via `git hook run` |
-| SHOULD | Retrieval/classification evaluation with measured numbers                               | ◐      | Fixture run in `docs/evaluation.md`; live run pending `OPENAI_API_KEY`                                                      |
+| SHOULD | Retrieval/classification evaluation with measured numbers                               | ☑      | Fixture + live OpenAI runs in `docs/evaluation.md` (live report `docs/evaluation-live.json`)                                |
 | EXTRA  | Duplicate upload detection (sha256, 5-min window)                                       | ☑      | `api.test.ts` duplicate test                                                                                                |
 | EXTRA  | Deep-link citation into reference PDF                                                   | ☑      | Browser check: opens p.5 with the exact quote highlighted                                                                   |
 
@@ -72,9 +72,27 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   Verification logs now include identity-gate outcome, top passages with scores and `decided_by`; README gained the
   retrieval evaluation strategy and a log-tracing guide; Dependabot set to skip major versions.
 
+- 2026-11-10 (security): `pnpm audit` found 4 high advisories in production deps that the report-only CI audit
+  let through: `pdfjs-dist` 5.7.284 (CVE-2026-16633, introduced by the #18 upgrade) and `sharp` 0.34 via
+  transformers (libvips/libheif/librsvg). Worker pdf.js back to 5.4.296 (same as web), `sharp` overridden to 0.35.5
+  (embeddings verified), CI now blocks on high/critical production advisories. Dev-only advisories (vitest/tinypool,
+  minimatch) remain report-only.
+
+- 2026-11-10 (hardening): verification runs 3 medications in parallel (bounded, order kept); `ALLOW_SIGNUP` and a
+  per-user `DAILY_JOB_LIMIT` protect a paid model key; web ships no source maps and lazy-loads the PDF viewer (main
+  bundle 997 KB → 572 KB); first frontend unit tests (progress reducer, upload validation); v8 coverage with
+  thresholds in CI (57.6% statements / 77.5% branches / 72.4% functions); every setting documented in `.env.example`,
+  Compose and the README; README screenshots.
+- 2026-11-10 (live evaluation): 8 full `pnpm eval:live` runs on `gpt-5.4-mini`. Fixes from what they showed: the
+  summary and critical-point prompts now compare follow-up timings across sections (the psychiatry discrepancy had
+  been lost); quote matching treats table `|` separators as whitespace (faithful table quotes had been rejected);
+  an LLM-only indication conflict needs exclusion language. New eval metric: discrepancy preserved. Final run: all
+  metrics 100%.
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).
 - Worker image size (LibreOffice + embedding model) → longer first build.
-- Real-model behaviour only verified once the user supplies `OPENAI_API_KEY`.
+- Live model output varies between runs; measured on one document (8 runs). Safeguards stay in code (quote validation,
+  deterministic merge, identity gate, indication-exclusion rule).
 - Monograph rule extraction is pattern-based and fitted to this digest's phrasing (see README limitations).

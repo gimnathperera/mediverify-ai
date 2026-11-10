@@ -34,9 +34,10 @@ export async function extractPdfLines(
     useSystemFonts: false,
     verbosity: 0,
   };
-  // Uploaded PDFs are untrusted. pdf.js ≤ 5.4 compiled PDF functions with `new Function` unless
-  // `isEvalSupported: false`; 5.7 removed that code path and the option. Pass it untyped so the
-  // hardening still applies if an older pdf.js is ever resolved, and is ignored otherwise.
+  // Uploaded PDFs are untrusted. pdf.js 5.4 (pinned to match react-pdf; 5.6.83–6.2.107 carry
+  // CVE-2026-16633) compiles PDF functions with `new Function` unless `isEvalSupported: false`.
+  // Later versions drop the option, so it is passed untyped: applied where supported, ignored
+  // otherwise. Text extraction never enables pdf.js scripting.
   Object.assign(params, { isEvalSupported: false });
   const doc = await pdfjs.getDocument(params).promise;
   const lines: Line[] = [];

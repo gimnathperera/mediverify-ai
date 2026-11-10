@@ -24,7 +24,12 @@ const log = pino({
 });
 
 async function main() {
-  const pool = createPool(config.databaseUrl, config.concurrency + 4);
+  // Each job slot can run up to `verifyConcurrency` verification queries at once, plus heartbeat,
+  // claim, reaper and LISTEN connections.
+  const pool = createPool(
+    config.databaseUrl,
+    config.concurrency * (config.verifyConcurrency + 1) + 4,
+  );
   const deps: PipelineDeps = {
     pool,
     llm: createLlmProvider(process.env, log),
@@ -32,6 +37,7 @@ async function main() {
     config: {
       retrievalTopK: config.retrievalTopK,
       retrievalMinScore: config.retrievalMinScore,
+      verifyConcurrency: config.verifyConcurrency,
       sofficeBin: config.sofficeBin,
     },
   };

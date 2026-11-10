@@ -63,6 +63,7 @@ interface Golden {
     evidenceFields: string[];
   }[];
   distractorMonographs: string[];
+  documentDiscrepancies: { topic: string; quoteNeedles: string[]; summaryPatterns: string[] }[];
 }
 
 const NEGATIVE_NAMES = [
@@ -296,6 +297,23 @@ try {
       v.findings.filter((f) => f.verdict === 'conflict' || f.verdict === 'consistent'),
     ) ?? [];
   const cpSources = results?.criticalPoints.flatMap((p) => p.sources) ?? [];
+  // Internal inconsistencies of the primary document must be preserved (CLAUDE.md RAG rule 7):
+  // a document_discrepancy point citing a valid quote for each version, and both versions in the summary.
+  const discrepancies = golden.documentDiscrepancies.map((d) => {
+    const point = results?.criticalPoints.find(
+      (p) =>
+        p.category === 'document_discrepancy' &&
+        d.quoteNeedles.every((n) =>
+          p.sources.some((s) => s.quoteValid && s.quote.toLowerCase().includes(n.toLowerCase())),
+        ),
+    );
+    const summaryText = results?.summary?.text ?? '';
+    return {
+      topic: d.topic,
+      inCriticalPoints: Boolean(point),
+      inSummary: d.summaryPatterns.every((re) => new RegExp(re, 'i').test(summaryText)),
+    };
+  });
   const distractorFindings = citations.filter((c) =>
     golden.distractorMonographs.includes(c!.monographName ?? ''),
   ).length;
@@ -352,6 +370,15 @@ try {
         cpSources.length,
       ),
       criticalPoints: results?.criticalPoints.length ?? 0,
+      discrepancyPreservedInCriticalPoints: pct(
+        discrepancies.filter((d) => d.inCriticalPoints).length,
+        discrepancies.length,
+      ),
+      discrepancyPreservedInSummary: pct(
+        discrepancies.filter((d) => d.inSummary).length,
+        discrepancies.length,
+      ),
+      discrepancies,
       distractorMonographFindings: distractorFindings,
       perMedication: perMed,
     },
@@ -366,6 +393,7 @@ try {
       .join(', ')}`,
     `targeted retrieval: mean Recall@3 ${report.targetedRetrieval.meanRecallAt3}, Recall@${K} ${report.targetedRetrieval.meanRecallAtK}`,
     `end-to-end (${outcome}, ${e2eMs} ms): status ${report.endToEnd.statusAccuracy}, conflict-field P ${report.endToEnd.conflictFieldPrecision} / R ${report.endToEnd.conflictFieldRecall}, citations valid ${report.endToEnd.citationValidity}, critical-point quotes valid ${report.endToEnd.criticalPointQuoteValidity}, distractor findings ${distractorFindings}`,
+    `document discrepancies preserved: critical points ${report.endToEnd.discrepancyPreservedInCriticalPoints}, summary ${report.endToEnd.discrepancyPreservedInSummary}`,
     `extraction accuracy: ${Object.entries(extractionAcc)
       .map(([k, v]) => `${k} ${v}`)
       .join(', ')}`,
