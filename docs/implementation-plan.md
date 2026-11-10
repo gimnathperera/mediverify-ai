@@ -4,28 +4,28 @@ Living checklist. Status: ☐ todo · ◐ in progress · ☑ done (verified by a
 
 ## Requirement checklist
 
-| Pri    | Requirement                                                                             | Status | Evidence                                                                                                                                          |
-| ------ | --------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MUST   | Email/password signup/login/logout, hashed passwords, seed creds                        | ☑      | `api.test.ts` (argon2id hash, cookie flags, 401s); seed in `scripts/seed.ts`; browser login checked                                               |
-| MUST   | Upload PDF/DOCX (drag-drop, type/size validation) + select reference                    | ☑      | `api.test.ts` validation cases; `UploadPanel.tsx`; DOCX→PDF verified in the worker container                                                      |
-| MUST   | `POST /documents` → 202 + job id; atomic document/job/stages/event tx                   | ☑      | `api.test.ts` 202 + injected-fault rollback test                                                                                                  |
-| MUST   | Worker stages parsed→…→done with status/timing/errors; no hung jobs                     | ☑      | `worker-reliability.test.ts` (fail, retry, resume, SKIP LOCKED, reaper, zombie lease)                                                             |
-| MUST   | Real-time progress (SSE), survives refresh/reconnect                                    | ☑      | `api.test.ts` SSE replay/resume/live; checked in the browser                                                                                      |
-| MUST   | Summary (primary only)                                                                  | ☑      | Golden test + faithfulness guard unit test (fixture LLM)                                                                                          |
-| MUST   | Critical points with page + validated quote; discrepancies preserved                    | ☑      | Golden tests (14 points, 100% quotes valid, psychiatry discrepancy kept)                                                                          |
-| MUST   | Structured medication extraction (all fields, raw+normalized, provenance)               | ☑      | Golden test; `pnpm eval` extraction 100% per field (fixture LLM)                                                                                  |
-| MUST   | Monograph-aware chunking + embeddings in pgvector; reuse across jobs                    | ☑      | `parsing.test.ts` (8 monographs, chunk kinds); index reuse reported in stage events                                                               |
-| MUST   | Identity-gated hybrid retrieval; verification S/C/U(+incomplete) w/ validated citations | ☑      | Golden 6/6; `verification.test.ts`; `docs/evaluation.md`                                                                                          |
-| MUST   | Two-column view (PDF + results), clickable citation preview                             | ☑      | Browser check on Vite dev; Playwright reviewer flow vs Compose passes (desktop + Pixel 7)                                                         |
-| MUST   | Loading / empty / error / failed-job / model-unavailable states                         | ☑      | `DocumentsPage`, `DocumentPage`, `AppShell` banners; checked in the browser                                                                       |
-| MUST   | Ownership enforcement on every endpoint incl. SSE + file                                | ☑      | `api.test.ts` IDOR test across every route incl. SSE and file                                                                                     |
-| MUST   | Structured JSON logs traceable per job                                                  | ☑      | pino with job_id/document_id/stage/event/duration_ms in worker + API                                                                              |
-| MUST   | Tests: golden verification, authz, rollback, failure, reconnect                         | ☑      | 30 unit + 40 integration passing locally                                                                                                          |
-| MUST   | Single docker-compose, versioned migrations, seed, README < 10 min                      | ☑      | Stack came up healthy from `docker compose up --build`; README written                                                                            |
-| SHOULD | Lint/format/strict TS, Husky hooks, GitHub Actions CI                                   | ◐      | Lint/format/typecheck clean locally; first GitHub run failed (root type errors, HF model download reset); both fixed, green re-run pending a push |
-| SHOULD | Retrieval/classification evaluation with measured numbers                               | ◐      | Fixture run in `docs/evaluation.md`; live run pending `OPENAI_API_KEY`                                                                            |
-| EXTRA  | Duplicate upload detection (sha256, 5-min window)                                       | ☑      | `api.test.ts` duplicate test                                                                                                                      |
-| EXTRA  | Deep-link citation into reference PDF                                                   | ☑      | Browser check: opens p.5 with the exact quote highlighted                                                                                         |
+| Pri    | Requirement                                                                             | Status | Evidence                                                                                                                    |
+| ------ | --------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------- |
+| MUST   | Email/password signup/login/logout, hashed passwords, seed creds                        | ☑      | `api.test.ts` (argon2id hash, cookie flags, 401s); seed in `scripts/seed.ts`; browser login checked                         |
+| MUST   | Upload PDF/DOCX (drag-drop, type/size validation) + select reference                    | ☑      | `api.test.ts` validation cases; `UploadPanel.tsx`; DOCX→PDF verified in the worker container                                |
+| MUST   | `POST /documents` → 202 + job id; atomic document/job/stages/event tx                   | ☑      | `api.test.ts` 202 + injected-fault rollback test                                                                            |
+| MUST   | Worker stages parsed→…→done with status/timing/errors; no hung jobs                     | ☑      | `worker-reliability.test.ts` (fail, retry, resume, SKIP LOCKED, reaper, zombie lease)                                       |
+| MUST   | Real-time progress (SSE), survives refresh/reconnect                                    | ☑      | `api.test.ts` SSE replay/resume/live; checked in the browser                                                                |
+| MUST   | Summary (primary only)                                                                  | ☑      | Golden test + faithfulness guard unit test (fixture LLM)                                                                    |
+| MUST   | Critical points with page + validated quote; discrepancies preserved                    | ☑      | Golden tests (14 points, 100% quotes valid, psychiatry discrepancy kept)                                                    |
+| MUST   | Structured medication extraction (all fields, raw+normalized, provenance)               | ☑      | Golden test; `pnpm eval` extraction 100% per field (fixture LLM)                                                            |
+| MUST   | Monograph-aware chunking + embeddings in pgvector; reuse across jobs                    | ☑      | `parsing.test.ts` (8 monographs, chunk kinds); index reuse reported in stage events                                         |
+| MUST   | Identity-gated hybrid retrieval; verification S/C/U(+incomplete) w/ validated citations | ☑      | Golden 6/6; `verification.test.ts`; `docs/evaluation.md`                                                                    |
+| MUST   | Two-column view (PDF + results), clickable citation preview                             | ☑      | Browser check on Vite dev; Playwright reviewer flow vs Compose passes (desktop + Pixel 7)                                   |
+| MUST   | Loading / empty / error / failed-job / model-unavailable states                         | ☑      | `DocumentsPage`, `DocumentPage`, `AppShell` banners; checked in the browser                                                 |
+| MUST   | Ownership enforcement on every endpoint incl. SSE + file                                | ☑      | `api.test.ts` IDOR test across every route incl. SSE and file                                                               |
+| MUST   | Structured JSON logs traceable per job                                                  | ☑      | pino with job_id/document_id/stage/event/duration_ms in worker + API                                                        |
+| MUST   | Tests: golden verification, authz, rollback, failure, reconnect                         | ☑      | 30 unit + 40 integration passing locally                                                                                    |
+| MUST   | Single docker-compose, versioned migrations, seed, README < 10 min                      | ☑      | Stack came up healthy from `docker compose up --build`; README written                                                      |
+| SHOULD | Lint/format/strict TS, Husky hooks, GitHub Actions CI                                   | ☑      | GitHub Actions green on `main` (quality, tests, Compose + Playwright, secret scan); Husky hooks verified via `git hook run` |
+| SHOULD | Retrieval/classification evaluation with measured numbers                               | ◐      | Fixture run in `docs/evaluation.md`; live run pending `OPENAI_API_KEY`                                                      |
+| EXTRA  | Duplicate upload detection (sha256, 5-min window)                                       | ☑      | `api.test.ts` duplicate test                                                                                                |
+| EXTRA  | Deep-link citation into reference PDF                                                   | ☑      | Browser check: opens p.5 with the exact quote highlighted                                                                   |
 
 ## Architecture (summary — see CLAUDE.md / README for detail)
 
@@ -65,6 +65,12 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   (pdf.js worker failed to load), and the embedding model loaded lazily on the first job (~35 s). Both are fixed in
   source (`docker/nginx.conf`; worker warm-up in `apps/worker/src/main.ts`). After rebuilding, Playwright passes 4/4 (desktop + mobile)
   against the Compose stack in fixture mode; the worker logs `embedder.ready` (~0.4 s) before claiming jobs.
+- 2026-11-10: first GitHub CI run failed (root `scripts/`/`tests/` type errors not covered by `pnpm typecheck`; Hugging
+  Face download reset with no retry) → `typecheck` now includes the root tsconfig, the embedding loader retries. Secret
+  scan needed `pull-requests: read` on PRs. `main` is green. Live OpenAI test: key valid, account had no credit →
+  added non-retryable `MODEL_QUOTA_EXCEEDED`. Husky hooks installed (`pnpm exec husky`; install predated `git init`).
+  Verification logs now include identity-gate outcome, top passages with scores and `decided_by`; README gained the
+  retrieval evaluation strategy and a log-tracing guide; Dependabot set to skip major versions.
 
 ## Known risks
 

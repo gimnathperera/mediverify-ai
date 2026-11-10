@@ -340,9 +340,22 @@ const verified: StageFn = async (deps, state) => {
         event: 'verification.result',
         medication: med.drugName,
         status: out.status,
-        conflicts: out.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field),
+        // identity gate
+        identity_match: out.identity.match,
+        monograph: out.identity.monographName,
+        similar_not_matched: out.similarNames,
+        // retrieval (ids/fields/scores only — never passage text)
         retrieved: out.retrieval.chunks.length,
         dropped_below_threshold: out.retrieval.droppedBelowThreshold,
+        top_passages: out.retrieval.chunks
+          .slice(0, 3)
+          .map((c) => ({ chunk_id: c.id, field: c.field, score: c.score })),
+        // verification
+        conflicts: out.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field),
+        decided_by: out.findings.reduce<Record<string, number>>((acc, f) => {
+          acc[f.decidedBy] = (acc[f.decidedBy] ?? 0) + 1;
+          return acc;
+        }, {}),
         invalid_quotes: out.findings.filter((f) => f.quote && !f.quoteValid).length,
       },
       'medication verified',
