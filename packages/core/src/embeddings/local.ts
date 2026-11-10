@@ -23,13 +23,28 @@ export class LocalEmbeddingProvider implements EmbeddingProvider {
   ) {}
 
   private load(): Promise<Extractor> {
-    this.extractor ??= (async () => {
-      const t = await import('@huggingface/transformers');
-      if (this.cacheDir) t.env.cacheDir = this.cacheDir;
-      if (process.env.EMBEDDING_OFFLINE === 'true') t.env.allowRemoteModels = false;
-      return await t.pipeline('feature-extraction', this.model, { dtype: 'q8' });
-    })();
+    this.extractor ??= this.loadWithRetry().catch((err: unknown) => {
+      // Never cache a failed load: the next call (e.g. the next job) tries again.
+      this.extractor = null;
+      throw err;
+    });
     return this.extractor;
+  }
+
+  /** The first run downloads the model from the Hugging Face Hub; retry transient network errors. */
+  private async loadWithRetry(attempts = 4): Promise<Extractor> {
+    const t = await import('@huggingface/transformers');
+    if (this.cacheDir) t.env.cacheDir = this.cacheDir;
+    const offline = process.env.EMBEDDING_OFFLINE === 'true';
+    if (offline) t.env.allowRemoteModels = false;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        return await t.pipeline('feature-extraction', this.model, { dtype: 'q8' });
+      } catch (err) {
+        if (offline || attempt >= attempts) throw err;
+        await new Promise((r) => setTimeout(r, 1000 * 2 ** (attempt - 1)));
+      }
+    }
   }
 
   async embedDocuments(texts: string[]): Promise<number[][]> {

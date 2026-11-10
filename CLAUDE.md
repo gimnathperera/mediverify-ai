@@ -45,7 +45,7 @@ pnpm test:integration                  # needs Postgres (TEST_DATABASE_URL)
 pnpm test:e2e                          # Playwright vs running Compose stack (fixture mode)
 pnpm eval                              # retrieval + classification eval (fixture LLM) → docs/evaluation.md numbers
 pnpm eval:live                         # same with real OpenAI (needs OPENAI_API_KEY) — label results as live
-pnpm ci                                # format:check + lint + typecheck + unit + integration (mirrors CI)
+pnpm run ci                            # format:check + lint + typecheck + unit + integration (mirrors CI; `pnpm ci` is a pnpm builtin)
 ```
 
 ## Conventions
@@ -87,8 +87,11 @@ pnpm ci                                # format:check + lint + typecheck + unit 
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
 - Status (2026-11-09): 30 unit + 40 integration + 4 Playwright (desktop + mobile vs Compose) pass;
-  lint/format/typecheck clean; CI never run remotely;
-  no live-OpenAI evaluation yet.
+  lint/format/typecheck clean. First GitHub CI run failed (root type errors + HF download reset) — both fixed locally,
+  not yet re-run on GitHub. No live-OpenAI evaluation yet.
+- `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
+  `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
+- `LocalEmbeddingProvider` retries the first model download and never caches a failed load.
 
 ## RAG & verification rules (do not weaken)
 
