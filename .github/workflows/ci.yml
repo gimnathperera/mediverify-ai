@@ -113,7 +113,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: pnpm audit (report only)
         run: pnpm audit --audit-level=high || true
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
