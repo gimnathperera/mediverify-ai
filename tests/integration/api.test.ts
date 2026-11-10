@@ -34,7 +34,7 @@ const uniquePdf = () => Buffer.concat([pdf, Buffer.from(`\n% test-${Math.random(
 
 function upload(
   agent: ReturnType<typeof request.agent>,
-  bytes = uniquePdf(),
+  bytes: Buffer = uniquePdf(),
   name = 'discharge.pdf',
 ) {
   return agent.post('/api/documents').field('referenceId', refId).attach('file', bytes, name);
