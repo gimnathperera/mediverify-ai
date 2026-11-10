@@ -60,12 +60,21 @@ The worker indexes the reference once at startup and loads the embedding model b
 ```bash
 pnpm install                       # Node 24, pnpm 10
 docker compose up -d db            # Postgres only
-export DATABASE_URL=postgres://mediverify:mediverify@localhost:55432/mediverify
-pnpm db:migrate && pnpm db:seed
+pnpm db:migrate && pnpm db:seed    # defaults to localhost:55432; set DATABASE_URL in .env to override
 pnpm dev:api                       # :3001 (run from the repo root; the script runs it from apps/api)
 pnpm dev:worker
 pnpm dev:web                       # :5173, proxies /api → :3001
 ```
+
+**Environment.** Every setting has a default, so nothing _requires_ a `.env`. Compose reads `.env` automatically, and
+the host-side commands (`db:migrate`, `db:seed`, `dev:api`, `dev:worker`, `eval`, `eval:live`) load it if it exists.
+Without a `.env`, `LLM_PROVIDER` defaults to `openai` with no key: jobs then fail with `MODEL_NOT_CONFIGURED`. For a
+key-less demo use `LLM_PROVIDER=fixture`. `pnpm eval` always uses fixtures; `pnpm eval:live` refuses to start
+without `OPENAI_API_KEY`.
+
+**Getting an OpenAI key:** sign in at platform.openai.com, add API credit under _Settings → Billing_ (separate from a
+ChatGPT subscription; consider a monthly usage limit), then _API keys → Create new secret key_. Put it in `.env` as
+`OPENAI_API_KEY=` and never commit it (`.env` is git-ignored and the pre-commit secret guard blocks keys).
 
 ---
 
@@ -389,7 +398,8 @@ pnpm test:integration   # 40 tests vs real Postgres (needs `docker compose up -d
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode
 pnpm eval               # retrieval + classification evaluation → numbers in docs/evaluation.md
 pnpm eval:live          # same with real OpenAI (needs OPENAI_API_KEY)
-pnpm ci                 # format:check + lint + typecheck + unit + integration (mirrors GitHub Actions)
+pnpm run ci             # format:check + lint + typecheck + unit + integration (mirrors GitHub Actions)
+                        # (`pnpm ci` without `run` is a built-in pnpm command, not this script)
 ```
 
 The integration tests break down as follows:
@@ -429,8 +439,9 @@ The integration tests break down as follows:
 > **Verified locally (2026-11-09):** 30 unit, 40 integration and 4 Playwright tests (desktop + Pixel 7 against
 > the Compose stack in fixture mode) pass; lint, format and typecheck are clean.
 >
-> **CI status:** these workflows have **not run on GitHub yet**, because the repository hasn't been pushed. The same
-> commands pass locally.
+> **CI status:** the first GitHub run on `main` failed on two issues that are now fixed: root `scripts/`/`tests/`
+> type errors (`pnpm typecheck` now covers them) and a dropped Hugging Face model download (the embedding loader now
+> retries). The fixes pass locally with `pnpm run ci`; a green GitHub run needs the next push.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json",
-    "dev": "tsx watch --conditions=@mediverify/source src/main.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env --conditions=@mediverify/source src/main.ts",
     "start": "node dist/main.js"
   },
   "dependencies": {
