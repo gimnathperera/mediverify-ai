@@ -12,6 +12,15 @@ Every verdict comes with verbatim, validated evidence from the reference.
 > **Fictional data, demo only.** The bundled documents are fictional. Nothing here is clinical advice. The UI shows this
 > disclaimer at all times.
 
+![Document view: the discharge summary on the left; summary, verdict counts and per-medication findings on the right](docs/screenshots/document-view.png)
+
+| Citation with a verified quote                                                                                                                       | Deep link into the formulary                                                                                        |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| ![Citation sheet for Pravoxil timing: monograph, section, field, page and the quote marked as verified in the source](docs/screenshots/citation.png) | ![The reference PDF opened at page 5 with the cited sentence highlighted](docs/screenshots/reference-deep-link.png) |
+
+Screenshots are from fixture mode (see the banner); [`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts)
+recaptures them from a running stack.
+
 ---
 
 ## Quick start (≈ 5–10 min, most of it the first image build)
@@ -76,6 +85,23 @@ without `OPENAI_API_KEY`.
 **Getting an OpenAI key:** sign in at platform.openai.com, add API credit under _Settings → Billing_ (separate from a
 ChatGPT subscription; consider a monthly usage limit), then _API keys → Create new secret key_. Put it in `.env` as
 `OPENAI_API_KEY=` and never commit it (`.env` is git-ignored and the pre-commit secret guard blocks keys).
+
+### Configuration
+
+All settings are environment variables with safe defaults; [.env.example](.env.example) lists them with comments.
+
+| Setting                                            | Default                       | Purpose                                                                                           |
+| -------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER` / `OPENAI_API_KEY` / `OPENAI_MODEL` | `openai` / – / `gpt-5.4-mini` | Model provider (`fixture` for the key-less demo)                                                  |
+| `LLM_TIMEOUT_MS` / `LLM_MAX_RETRIES`               | `90000` / `3`                 | Per-call timeout; retries for 429 rate limits, 5xx and network errors                             |
+| `ALLOW_SIGNUP`                                     | `true`                        | Set `false` for a hosted demo on a paid key; seed users still sign in                             |
+| `DAILY_JOB_LIMIT`                                  | `20`                          | Pipeline runs (uploads + retries) per user per rolling 24 h; `0` = unlimited. Duplicates are free |
+| `COOKIE_SECURE`                                    | `false`                       | Set `true` behind HTTPS                                                                           |
+| `DUPLICATE_WINDOW_SECONDS`                         | `300`                         | Duplicate-upload window; `0` disables                                                             |
+| `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE`          | `6` / `0.35`                  | Passages retrieved per medication and the relevance floor (below it → `incomplete`)               |
+| `VERIFY_CONCURRENCY`                               | `3`                           | Medications verified in parallel per job                                                          |
+| `WORKER_CONCURRENCY`                               | `1`                           | Jobs per worker container; scale out with `docker compose up --scale worker=N`                    |
+| `STAGE_TIMEOUT_MS` / `JOB_MAX_ATTEMPTS`            | `180000` / `3`                | Per-stage limit; attempts before a job is marked failed                                           |
 
 ---
 
@@ -413,9 +439,15 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
   - Cookie: HttpOnly, SameSite=Strict; `Secure` is configurable for TLS deployments.
   - Mutating requests must carry an allowed `Origin`.
   - Web and API share an origin through the nginx/Vite proxy, so there is no CORS.
+- **Spending and abuse limits.** Sign-up can be switched off (`ALLOW_SIGNUP=false`); each user gets a rolling 24 h
+  budget of pipeline runs (`DAILY_JOB_LIMIT`, checked inside the job-creating transaction under a per-user lock),
+  and login/sign-up are rate-limited per IP. A hosted demo on a paid model key can't be drained by one account.
 - **Uploads.** Checked server-side for extension, magic bytes (`%PDF-`, or a DOCX zip containing `word/document.xml`)
   and size. Files are stored as `bytea` and never written to a public path. DOCX conversion runs LibreOffice with an
   isolated, throwaway profile and a timeout.
+- **No published source.** Production web images ship no source maps; the PDF viewer (react-pdf + pdf.js) is a
+  separate chunk loaded only when a document opens.
+- **Dependencies.** CI fails on high/critical advisories in production dependencies (`pnpm audit --prod`).
 - **Headers.** nginx sets CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options` and `Referrer-Policy`; the API also
   sets the last two.
 - **Secrets** come only from the environment. `.env` is git-ignored. A pre-commit secret guard and gitleaks run in CI.
@@ -428,9 +460,12 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 ## Testing and quality
 
 ```bash
-pnpm test:unit          # 30 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
-                        #           identity gate, quote validation, deterministic checks, merge controls, strict schemas, injection
-pnpm test:integration   # 40 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+pnpm test:unit          # 44 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
+                        #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
+                        #           injection, error classification, bounded concurrency, dependency pins, and the web
+                        #           app's live-progress reducer and upload validation
+pnpm test:integration   # 42 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+pnpm test:coverage      # both, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode
 pnpm eval               # retrieval + classification evaluation → numbers in docs/evaluation.md
 pnpm eval:live          # same with real OpenAI (needs OPENAI_API_KEY)
@@ -448,6 +483,10 @@ The integration tests break down as follows:
   live streaming.
 - **Worker reliability (6):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
   reaper, and zombie-lease protection.
+- **Deployment limits (2):** sign-up disabled, per-user daily run budget (duplicates free, retries counted).
+
+Coverage (unit + integration, 2026-11-10): 57.6% statements, 77.5% branches, 72.4% functions. Server-side code is
+well covered; React components are covered only by the Playwright smoke test, which is the main gap.
 
 **Tooling.**
 
@@ -475,8 +514,8 @@ The integration tests break down as follows:
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 33 unit, 40 integration and 4
-> Playwright tests pass. The manual live-model evaluation job has not run yet.
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 44 unit, 42 integration and 4
+> Playwright tests pass (coverage thresholds enforced). The manual live-model evaluation job has not run yet.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 

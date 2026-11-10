@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 
-import { PdfViewer } from '../components/PdfViewer';
+import { PdfViewer } from '../components/LazyPdfViewer';
 import { PipelineTimeline } from '../components/PipelineTimeline';
 import { ResultsView } from '../components/Results';
 import { JobStatusBadge } from '../components/status';

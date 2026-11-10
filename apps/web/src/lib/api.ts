@@ -64,6 +64,8 @@ export interface RuntimeConfig {
   fixtureMode: boolean;
   maxUploadBytes: number;
   disclaimer: string;
+  signupEnabled: boolean;
+  dailyJobLimit: number;
 }
 
 export interface ChunkPreview extends Omit<CitationDto, 'quote' | 'quoteValid'> {

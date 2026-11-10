@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { api } from '../lib/api';
 import { normalizeText } from '../lib/utils';
 
-import { PdfViewer } from './PdfViewer';
+import { PdfViewer } from './LazyPdfViewer';
 import { Alert, Badge, Button, Skeleton } from './ui/primitives';
 import { Sheet } from './ui/sheet';
 

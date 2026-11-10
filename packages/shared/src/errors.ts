@@ -11,6 +11,8 @@ export const ERROR_CODES = [
   'REFERENCE_NOT_FOUND',
   'JOB_NOT_RETRYABLE',
   'RATE_LIMITED',
+  'SIGNUP_DISABLED',
+  'QUOTA_EXCEEDED',
   'INTERNAL',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];

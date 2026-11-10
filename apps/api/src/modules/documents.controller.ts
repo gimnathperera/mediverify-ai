@@ -32,6 +32,7 @@ import type { Logger } from 'pino';
 
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser } from '../common/auth.js';
+import { assertJobQuota } from '../common/quota.js';
 import { parseOrThrow, uuidParam } from '../common/zod.js';
 import type { AppConfig } from '../config.js';
 import { APP_CONFIG, LOGGER, PG_POOL, UPLOAD_FAULT_HOOK, type UploadFaultHook } from '../tokens.js';
@@ -96,6 +97,7 @@ export class DocumentsController {
         this.config.duplicateWindowSeconds,
       );
       if (dup) return { ...dup, duplicate: true };
+      await assertJobQuota(c, user.id, this.config.dailyJobLimit);
       const ids = await documentsRepo.insertUploadRecords(c, {
         ownerId: user.id,
         referenceId,

@@ -351,3 +351,16 @@ export async function createRetryJob(q: Queryable, jobId: string, ownerId: strin
   await q.query("SELECT pg_notify('job_queue', $1)", [newId]);
   return { kind: 'ok' as const, jobId: newId, documentId: prev.document_id };
 }
+
+/**
+ * Serialize a user's job creation and count the pipeline runs they started in the last 24 h.
+ * Call inside the creating transaction so concurrent uploads can't both slip under the limit.
+ */
+export async function lockAndCountRecentJobs(q: Queryable, ownerId: string): Promise<number> {
+  await q.query("SELECT pg_advisory_xact_lock(hashtext('job-quota:' || $1))", [ownerId]);
+  const { rows } = await q.query<{ n: number }>(
+    "SELECT count(*)::int AS n FROM jobs WHERE owner_id = $1 AND created_at > now() - interval '24 hours'",
+    [ownerId],
+  );
+  return rows[0]?.n ?? 0;
+}

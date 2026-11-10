@@ -13,7 +13,7 @@ export interface TestApp {
   fault: { fn: (() => Promise<void>) | null };
 }
 
-export async function startApp(pool: pg.Pool): Promise<TestApp> {
+export async function startApp(pool: pg.Pool, env: Record<string, string> = {}): Promise<TestApp> {
   const fault: TestApp['fault'] = { fn: null };
   const app = await createApp({
     pool,
@@ -22,6 +22,7 @@ export async function startApp(pool: pg.Pool): Promise<TestApp> {
       LLM_PROVIDER: 'fixture',
       ALLOWED_ORIGINS: 'http://localhost:8088',
       DUPLICATE_WINDOW_SECONDS: '300',
+      ...env,
     }),
     logger: pino({ level: 'silent' }),
     uploadFaultHook: () => (fault.fn ? fault.fn() : Promise.resolve()),

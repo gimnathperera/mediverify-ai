@@ -57,6 +57,8 @@ export class AuthController {
     @Req() req: AuthedRequest,
     @Res({ passthrough: true }) res: Response,
   ): Promise<UserDto> {
+    if (!this.config.signupEnabled)
+      throw new ApiError(403, 'SIGNUP_DISABLED', 'Sign-up is disabled on this deployment');
     this.limiter.check(`signup:${req.ip}`);
     const { email, password } = parseOrThrow(credentialsSchema, body);
     const user = await usersRepo.createUser(this.pool, email, await hash(password));

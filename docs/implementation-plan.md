@@ -72,6 +72,18 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   Verification logs now include identity-gate outcome, top passages with scores and `decided_by`; README gained the
   retrieval evaluation strategy and a log-tracing guide; Dependabot set to skip major versions.
 
+- 2026-11-10 (security): `pnpm audit` found 4 high advisories in production deps that the report-only CI audit
+  let through: `pdfjs-dist` 5.7.284 (CVE-2026-16633, introduced by the #18 upgrade) and `sharp` 0.34 via
+  transformers (libvips/libheif/librsvg). Worker pdf.js back to 5.4.296 (same as web), `sharp` overridden to 0.35.5
+  (embeddings verified), CI now blocks on high/critical production advisories. Dev-only advisories (vitest/tinypool,
+  minimatch) remain report-only.
+
+- 2026-11-10 (hardening): verification runs 3 medications in parallel (bounded, order kept); `ALLOW_SIGNUP` and a
+  per-user `DAILY_JOB_LIMIT` protect a paid model key; web ships no source maps and lazy-loads the PDF viewer (main
+  bundle 997 KB → 572 KB); first frontend unit tests (progress reducer, upload validation); v8 coverage with
+  thresholds in CI (57.6% statements / 77.5% branches / 72.4% functions); every setting documented in `.env.example`,
+  Compose and the README; README screenshots.
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).
