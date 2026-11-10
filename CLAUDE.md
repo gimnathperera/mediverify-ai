@@ -59,7 +59,8 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   Never log passwords, tokens, cookies, API keys, raw document text or full patient quotes (log lengths/hashes/ids).
 - Formatting: Prettier (single quotes, 100 cols). ESLint flat config incl. `no-floating-promises`, react-hooks, jsx-a11y.
 - Commits: Conventional Commits (commitlint). Husky: pre-commit = lint-staged + secret guard; pre-push = typecheck + unit tests.
-  Hooks activate only once the user runs `git init` (`prepare: husky || true`). **Do not commit/push unless the user asks.**
+  Hooks install via `prepare: husky || true` only inside a git repo; if `git config core.hooksPath` is not `.husky/_`,
+  run `pnpm exec husky`. **Do not commit/push unless the user asks.**
 - Keep `docs/implementation-plan.md` (checklist/progress/risks) and this file updated as decisions change.
 
 ## Architecture decisions
@@ -86,12 +87,13 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-09): 30 unit + 40 integration + 4 Playwright (desktop + mobile vs Compose) pass;
-  lint/format/typecheck clean. First GitHub CI run failed (root type errors + HF download reset) — both fixed locally,
-  not yet re-run on GitHub. No live-OpenAI evaluation yet.
+- Status (2026-11-10): GitHub Actions green on `main`; 33 unit + 40 integration + 4 Playwright pass locally;
+  no live-OpenAI evaluation yet (account needs credit).
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
 - `LocalEmbeddingProvider` retries the first model download and never caches a failed load.
+- OpenAI 429 `insufficient_quota` → `MODEL_QUOTA_EXCEEDED` (non-retryable); other 429/5xx/network errors are retried.
+- Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.
 
 ## RAG & verification rules (do not weaken)
 

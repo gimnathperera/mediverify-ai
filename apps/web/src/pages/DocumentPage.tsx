@@ -120,10 +120,12 @@ export function DocumentPage() {
             </Button>
           }
         >
-          {job.data.errorCode === 'MODEL_NOT_CONFIGURED' ||
-          job.data.errorCode === 'MODEL_UNAVAILABLE'
-            ? `The language model is unavailable (${job.data.errorMessage}). Parsing results are kept; retry once the model is configured.`
-            : job.data.errorMessage}
+          {job.data.errorCode === 'MODEL_QUOTA_EXCEEDED'
+            ? 'The OpenAI account behind this deployment has no remaining API credit. Add credit in the OpenAI billing settings, then retry; parsing results are kept.'
+            : job.data.errorCode === 'MODEL_NOT_CONFIGURED' ||
+                job.data.errorCode === 'MODEL_UNAVAILABLE'
+              ? `The language model is unavailable (${job.data.errorMessage}). Parsing results are kept; retry once the model is configured.`
+              : job.data.errorMessage}
         </Alert>
       )}
       {done && job.data && (

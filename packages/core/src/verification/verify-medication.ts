@@ -7,7 +7,12 @@ import type { Evidence, MonographRules } from '../rules/monograph-rules.js';
 import { quoteAppearsIn, truncate } from '../text.js';
 
 import { deterministicChecks, type DetFinding, type MedicationForCheck } from './deterministic.js';
-import { matchMonograph, similarMonographNames, type MonographIdentity } from './identity.js';
+import {
+  identityMatchType,
+  matchMonograph,
+  similarMonographNames,
+  type MonographIdentity,
+} from './identity.js';
 
 export interface ChunkLike {
   id: string;
@@ -53,6 +58,8 @@ export interface FindingOut {
 export interface VerificationOut {
   status: VerificationStatus;
   monographId: string | null;
+  /** Identity gate outcome: exact name, explicit alias, or no monograph (similarity never matches). */
+  identity: { match: 'exact' | 'alias' | 'none'; monographName: string | null };
   summary: string;
   similarNames: string[];
   coverageChunkId: string | null;
@@ -144,6 +151,7 @@ export async function verifyMedication(
       status: 'unsupported',
       monographId: null,
       summary: `No monograph for ${med.drugName} exists in ${deps.referenceTitle}. This is a coverage gap — the prescription is neither confirmed nor shown to be wrong.${similarNote}`,
+      identity: { match: 'none', monographName: null },
       similarNames: similar,
       coverageChunkId: cov?.id ?? null,
       retrieval: { query: null, chunks: [], droppedBelowThreshold: 0 },
@@ -166,6 +174,10 @@ export async function verifyMedication(
     };
   }
 
+  const identity = {
+    match: identityMatchType(med.drugName, monograph),
+    monographName: monograph.name,
+  } as const;
   const allChunks = await deps.monographChunks(monograph.id);
   const fieldChunks = allChunks.filter((c) => c.fieldLabel !== null);
   const query = retrievalQuery(med);
@@ -184,6 +196,7 @@ export async function verifyMedication(
     return {
       status: 'incomplete',
       monographId: monograph.id,
+      identity,
       summary: `A ${monograph.name} monograph exists, but no passage was retrieved with sufficient relevance to verify the prescription. Left unclassified rather than guessed.`,
       similarNames: [],
       coverageChunkId: null,
@@ -251,6 +264,7 @@ export async function verifyMedication(
   return {
     status,
     monographId: monograph.id,
+    identity,
     summary,
     similarNames: [],
     coverageChunkId: null,

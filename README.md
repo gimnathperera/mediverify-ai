@@ -39,8 +39,9 @@ docker compose up --build
 | Reviewer                           | `reviewer@mediverify.test`    | `Reviewer#2026`   |
 | Second user (for isolation checks) | `second.user@mediverify.test` | `SecondUser#2026` |
 
-4. Upload `resources/primary_document_medical.pdf` (or the DOCX rendition `fixtures/sample_discharge.docx`) against
-   **MBMC Formulary Digest v8.2**.
+4. Upload `resources/primary_document_medical.pdf` against **MBMC Formulary Digest v8.2**. With a real key you can
+   also upload the DOCX rendition `fixtures/sample_discharge.docx`. In fixture mode the DOCX fails with
+   `FIXTURE_NOT_FOUND`, because fixtures exist only for the PDF's exact bytes.
 5. Watch the stages stream in, then open the citations.
 
 Compose starts these services:
@@ -209,7 +210,8 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
 
 - **Retryable errors:** network and 5xx errors, rate limits and timeouts. The job is requeued with exponential backoff
   (base 5 s) up to `max_attempts` (3). Completed stages are skipped on resume.
-- **Non-retryable errors:** for example `MODEL_NOT_CONFIGURED`, `PARSE_FAILED`, `FIXTURE_NOT_FOUND`, refusals and
+- **Non-retryable errors:** for example `MODEL_NOT_CONFIGURED`, `MODEL_QUOTA_EXCEEDED` (OpenAI 429
+  `insufficient_quota`: no credit left, unlike a plain rate limit), `PARSE_FAILED`, `FIXTURE_NOT_FOUND`, refusals and
   schema-invalid output after retries. The stage becomes `failed`, every later stage becomes `skipped`, and the job is
   marked `failed` with a sanitized message. The UI offers **Retry**, which creates a new job.
 - **Crashed or hung workers:**
@@ -300,6 +302,40 @@ rewrite primary-document points. They appear only in verification results, which
 - **Summary guard.** Numbers and capitalized terms in the summary must exist in the source; otherwise it gets one retry,
   then is stored with a visible warning.
 
+### Retrieval evaluation strategy
+
+Retrieval is evaluated as three separate questions, because each one fails in a different way. `pnpm eval` measures
+all three against the bundled documents and writes a JSON report (CI keeps it as an artifact). Full tables and
+failure modes are in [docs/evaluation.md](docs/evaluation.md).
+
+| Question                                 | How it is measured                                                                                                                                                                                                | Result (fixture LLM, real retrieval)                                                                                                                                                              |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Is the right monograph chosen?**       | Identity gate on 5 positives (the prescribed drugs that have monographs) and 7 negatives: Pranixol plus adversarial look-alikes (Velantina, Quintaxol, Etrazepam, Floranex, Sumavastin, "Cordizem" without "-XR") | 5/5 matched, 7/7 correctly not matched                                                                                                                                                            |
+| **Would vector search alone be safe?**   | Diagnostic: the same names queried against _all_ chunks without the gate                                                                                                                                          | Every absent name retrieves a look-alike (e.g. Pranixol → Pravoxil, cosine 0.818, overlapping true matches at 0.86–0.89). No threshold separates them, which is why identity is decided lexically |
+| **Are the deciding passages retrieved?** | Recall@K of the expected evidence fields (from the golden file) among passages retrieved inside the matched monograph                                                                                             | Recall@3 0.83, **Recall@6 1.00**, so K defaults to 6                                                                                                                                              |
+
+End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
+citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
+`pnpm eval:live` repeats the run with the real model; its results are not in yet (see Trade-offs).
+
+### Tracing one document through the logs
+
+Worker and API write pino JSON. Every pipeline line carries `job_id`, `document_id`, `stage`, `event` and
+`duration_ms`, so one document can be followed end to end:
+
+```bash
+docker compose logs worker api | grep <job_id>
+```
+
+| Stage                    | Events to look for                                                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Ingestion                | `upload.accepted` / `upload.duplicate` (API: document and job ids, size, type), `job.started`, `stage.started` / `stage.completed` with `duration_ms` and a detail line (pages, blocks, table rows, chunks, index reuse)                                                                                                              |
+| Extraction               | `llm.call` (task, model, latency, token usage) and `llm.error` (code, retryable, attempt)                                                                                                                                                                                                                                             |
+| Retrieval + verification | `verification.result` per medication: identity-gate outcome (`exact` / `alias` / `none`), matched monograph, rejected look-alike names, top passages (chunk id, field, score), passages dropped below the relevance threshold, conflicting fields, which side decided each finding (deterministic rules or the model), invalid quotes |
+| Failure                  | `stage.retrying` (transient error, job requeued; includes the attempt) or `stage.failed` (with `error_code`; later stages skipped, job failed), plus `job.lease_lost` / `reaper.recovered` for worker crashes                                                                                                                         |
+
+Logs never contain passwords, tokens, API keys, document text or quotes; only ids, counts, scores and lengths.
+
 ### Models
 
 | Purpose    | Model                                                                                                               | Why                                                                                                                  |
@@ -360,7 +396,7 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 
 - Parsing and indexing: `PARSE_FAILED`, `UNSUPPORTED_DOCUMENT`, `CONVERSION_FAILED`, `REFERENCE_INDEX_FAILED`,
   `EMBEDDING_FAILED`.
-- Model: `MODEL_UNAVAILABLE`, `MODEL_NOT_CONFIGURED`, `MODEL_REFUSED`, `MODEL_OUTPUT_INVALID`,
+- Model: `MODEL_UNAVAILABLE`, `MODEL_NOT_CONFIGURED`, `MODEL_QUOTA_EXCEEDED`, `MODEL_REFUSED`, `MODEL_OUTPUT_INVALID`,
   `MODEL_OUTPUT_TRUNCATED`, `FIXTURE_NOT_FOUND`.
 - Runtime: `STAGE_TIMEOUT`, `WORKER_LOST`, `INTERNAL`.
 
@@ -423,7 +459,9 @@ The integration tests break down as follows:
   - `commit-msg`: commitlint (Conventional Commits).
   - `pre-push`: typecheck + unit tests.
 
-  The hooks install via `prepare` and activate once the folder is a git repository (`git init && pnpm install`).
+  `pnpm install` installs the hooks through `prepare`, but only inside a git repository. If you ran `pnpm install`
+  before `git init` (or hooks don't fire), run `pnpm exec husky` once. `git config core.hooksPath` should then print
+  `.husky/_`.
 
 **CI/CD** (`.github/workflows/`):
 
@@ -436,12 +474,9 @@ The integration tests break down as follows:
 - `release.yml` builds images on `v*` tags and pushes to GHCR only when the `PUBLISH_IMAGES` variable is enabled.
 - Dependabot is configured for npm, Actions and Docker.
 
-> **Verified locally (2026-11-09):** 30 unit, 40 integration and 4 Playwright tests (desktop + Pixel 7 against
-> the Compose stack in fixture mode) pass; lint, format and typecheck are clean.
->
-> **CI status:** the first GitHub run on `main` failed on two issues that are now fixed: root `scripts/`/`tests/`
-> type errors (`pnpm typecheck` now covers them) and a dropped Hugging Face model download (the embedding loader now
-> retries). The fixes pass locally with `pnpm run ci`; a green GitHub run needs the next push.
+> **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 33 unit, 40 integration and 4
+> Playwright tests pass. The manual live-model evaluation job has not run yet.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
@@ -451,8 +486,10 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 
 - ✅ **Deep-link citations.** "View in reference document" opens the formulary PDF at the cited page with the exact
   quote highlighted.
-- ✅ **Duplicate upload detection.** Same owner + same bytes + same reference within 5 minutes returns the existing job.
-  This runs inside the upload transaction under an advisory lock, so it is race-safe.
+- ✅ **Duplicate upload detection.** Same owner + same bytes (sha256 content hash) + same reference within the window
+  returns the existing job. The window is `DUPLICATE_WINDOW_SECONDS` (default 300 = 5 minutes; 0 disables it). The
+  check runs inside the upload transaction under an advisory lock on (owner, hash), so two simultaneous uploads can't
+  both create jobs.
 
 ## Trade-offs and known limitations
 
@@ -471,7 +508,7 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Image size.** The worker image is large because of LibreOffice and the baked model.
 - **Storage.** File bytes live in Postgres, which is fine at a 10 MB cap. Use object storage at scale.
 
-## What's next
+## With more time
 
 1. Run `pnpm eval:live` and publish the live numbers.
 2. Build a larger synthetic evaluation set: more documents and adversarial look-alikes.

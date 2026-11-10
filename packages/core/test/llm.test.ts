@@ -1,6 +1,8 @@
+import OpenAI from 'openai';
 import { describe, expect, it } from 'vitest';
 
 import { toStrictJsonSchema } from '../src/llm/json-schema.js';
+import { classifyOpenAiError } from '../src/llm/openai.js';
 import { wrapDocument } from '../src/llm/prompts.js';
 import { criticalPointsOutput, entitiesOutput, verifyOutput } from '../src/llm/schemas.js';
 import { summaryWarnings } from '../src/tasks/summary.js';
@@ -56,5 +58,28 @@ describe('summary faithfulness guard', () => {
     const w = summaryWarnings('He takes Velantine 20 mg and also takes Lisinopril daily.', source);
     expect(w.join(' ')).toMatch(/"20"/);
     expect(w.join(' ')).toMatch(/Lisinopril/);
+  });
+});
+
+describe('OpenAI error classification', () => {
+  const apiError = (status: number, body: Record<string, unknown>) =>
+    // The SDK passes the whole response body, i.e. `{ error: { type, code, message } }`.
+    OpenAI.APIError.generate(status, { error: body }, 'provider error', new Headers());
+
+  it('treats exhausted credit (429 insufficient_quota) as non-retryable', () => {
+    const e = classifyOpenAiError(
+      apiError(429, { type: 'insufficient_quota', code: 'insufficient_quota', message: 'x' }),
+    );
+    expect(e.code).toBe('MODEL_QUOTA_EXCEEDED');
+    expect(e.retryable).toBe(false);
+  });
+
+  it('retries a plain rate limit and 5xx, not an invalid key', () => {
+    expect(classifyOpenAiError(apiError(429, { code: 'rate_limit_exceeded' })).retryable).toBe(
+      true,
+    );
+    expect(classifyOpenAiError(apiError(503, {})).retryable).toBe(true);
+    const auth = classifyOpenAiError(apiError(401, { code: 'invalid_api_key' }));
+    expect([auth.code, auth.retryable]).toEqual(['MODEL_NOT_CONFIGURED', false]);
   });
 });

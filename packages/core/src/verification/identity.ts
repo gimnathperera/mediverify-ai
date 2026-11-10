@@ -20,6 +20,14 @@ export function matchMonograph<T extends MonographIdentity>(
   return monographs.find((m) => m.nameNormalized === key || m.aliases.includes(key)) ?? null;
 }
 
+/** How a matched monograph was identified (for logs and audit). */
+export function identityMatchType(
+  drugName: string,
+  monograph: MonographIdentity,
+): 'exact' | 'alias' {
+  return monograph.nameNormalized === normalizeDrugName(drugName) ? 'exact' : 'alias';
+}
+
 /** Similar-looking names surfaced for transparency ("not matched"), never used for verification. */
 export function similarMonographNames(drugName: string, monographs: MonographIdentity[]): string[] {
   const key = normalizeDrugName(drugName);

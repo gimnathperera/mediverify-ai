@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { MonographRules } from '../src/rules/monograph-rules.js';
 import { normalizeDrugName, quoteAppearsIn } from '../src/text.js';
 import { deterministicChecks, type MedicationForCheck } from '../src/verification/deterministic.js';
-import { matchMonograph, similarMonographNames } from '../src/verification/identity.js';
+import {
+  identityMatchType,
+  matchMonograph,
+  similarMonographNames,
+} from '../src/verification/identity.js';
 import { mergeFindings, type ChunkLike } from '../src/verification/verify-medication.js';
 
 const monographs = [
@@ -34,6 +38,17 @@ describe('identity gate', () => {
     expect(similarMonographNames('Pranixol', monographs)).toEqual(['Pravoxil']);
     expect(matchMonograph('Velantina', monographs)).toBeNull();
     expect(matchMonograph('Quintax', monographs)).toBeNull();
+  });
+
+  it('records whether the match was by exact name or explicit alias', () => {
+    const cordizem = matchMonograph('Cordizem-XR', monographs)!;
+    expect(identityMatchType('Cordizem-XR', cordizem)).toBe('exact');
+    const viaAlias = {
+      ...cordizem,
+      nameNormalized: 'cordizem-xr-tablets',
+      aliases: ['cordizem-xr'],
+    };
+    expect(identityMatchType('Cordizem-XR', viaAlias)).toBe('alias');
   });
 });
 

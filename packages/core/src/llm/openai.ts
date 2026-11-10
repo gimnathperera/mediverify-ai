@@ -104,7 +104,7 @@ export class OpenAiProvider implements LlmProvider {
         if (this.cfg.recordDir) await this.record(req.fixtureKey, result.data);
         return result.data;
       } catch (err) {
-        lastError = classify(err);
+        lastError = classifyOpenAiError(err);
         this.cfg.logger?.warn(
           {
             event: 'llm.error',
@@ -129,7 +129,8 @@ export class OpenAiProvider implements LlmProvider {
   }
 }
 
-function classify(err: unknown): LlmError {
+/** Map provider errors to pipeline codes; only transient failures are retryable. */
+export function classifyOpenAiError(err: unknown): LlmError {
   if (err instanceof LlmError) return err;
   if (err instanceof OpenAI.APIError) {
     const status: number = typeof err.status === 'number' ? err.status : 0;
@@ -139,6 +140,13 @@ function classify(err: unknown): LlmError {
       return new LlmError('MODEL_NOT_CONFIGURED', 'Configured model was not found', false);
     if (status === 400)
       return new LlmError('MODEL_OUTPUT_INVALID', `Model request rejected: ${err.message}`, false);
+    // A 429 can mean "slow down" (retry) or "no credit/quota left" (retrying cannot help).
+    if (status === 429 && (err.code === 'insufficient_quota' || err.type === 'insufficient_quota'))
+      return new LlmError(
+        'MODEL_QUOTA_EXCEEDED',
+        'Model provider account has no remaining credit or quota (HTTP 429 insufficient_quota)',
+        false,
+      );
     if (status === 429 || status >= 500 || status === 0)
       return new LlmError(
         'MODEL_UNAVAILABLE',
