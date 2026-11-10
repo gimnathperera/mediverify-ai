@@ -1,21 +1,27 @@
 import { DEMO_DISCLAIMER } from '@mediverify/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, LogOut, ShieldCheck } from 'lucide-react';
-import type * as React from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { api } from '../lib/api';
 import { qk, useConfig, useMe } from '../lib/queries';
 
+import { ConfirmDialog } from './ui/confirm-dialog';
 import { Button } from './ui/primitives';
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children }: { children: ReactNode }) {
   const me = useMe();
   const config = useConfig();
   const qc = useQueryClient();
   const navigate = useNavigate();
 
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+
   const logout = async () => {
+    setSigningOut(true);
+    // Even if the request fails (e.g. server down), the local session is cleared.
     await api.logout().catch(() => undefined);
     qc.clear();
     qc.setQueryData(qk.me, null);
@@ -70,11 +76,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 {me.data.email}
               </span>
-              <Button variant="ghost" size="sm" onClick={() => void logout()}>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmOpen(true)}>
                 <LogOut className="h-4 w-4" aria-hidden /> Sign out
               </Button>
             </div>
           )}
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            icon={<LogOut className="h-4 w-4" />}
+            title="Sign out of MediVerify?"
+            description="You'll return to the sign-in page. Your documents and results stay saved, and any verification in progress keeps running."
+            confirmLabel="Sign out"
+            onConfirm={() => void logout()}
+            busy={signingOut}
+            destructive
+          />
         </div>
       </header>
       <main

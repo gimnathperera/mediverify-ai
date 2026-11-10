@@ -3,7 +3,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router';
 
 import { AppShell } from './components/AppShell';
 import { RouteErrorBoundary } from './components/ErrorBoundary';
-import { Alert, Spinner } from './components/ui/primitives';
+import { DocumentPageSkeleton, DocumentsPageSkeleton, ShellSkeleton } from './components/skeletons';
+import { Alert } from './components/ui/primitives';
 import { useMe } from './lib/queries';
 import { AuthPage } from './pages/AuthPage';
 
@@ -15,21 +16,14 @@ const DocumentPage = lazy(() =>
   import('./pages/DocumentPage').then((m) => ({ default: m.DocumentPage })),
 );
 
-const PageFallback = () => (
-  <div className="flex justify-center py-16">
-    <Spinner label="Loading page…" />
-  </div>
-);
-
-export function RequireAuth({ children }: { children: ReactNode }) {
+/**
+ * Signed-in routes. `skeleton` is the page's placeholder, shown while the session is checked and
+ * while the page's code chunk loads, so the layout appears at once instead of a full-page spinner.
+ */
+export function RequireAuth({ children, skeleton }: { children: ReactNode; skeleton: ReactNode }) {
   const me = useMe();
   const location = useLocation();
-  if (me.isLoading)
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Spinner label="Checking session…" />
-      </div>
-    );
+  if (me.isLoading) return <ShellSkeleton>{skeleton}</ShellSkeleton>;
   if (me.isError)
     return (
       <div className="p-6">
@@ -42,7 +36,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   return (
     <AppShell>
       <RouteErrorBoundary>
-        <Suspense fallback={<PageFallback />}>{children}</Suspense>
+        <Suspense fallback={skeleton}>{children}</Suspense>
       </RouteErrorBoundary>
     </AppShell>
   );
@@ -76,7 +70,7 @@ export function App() {
       <Route
         path="/documents"
         element={
-          <RequireAuth>
+          <RequireAuth skeleton={<DocumentsPageSkeleton />}>
             <DocumentsPage />
           </RequireAuth>
         }
@@ -84,7 +78,7 @@ export function App() {
       <Route
         path="/documents/:id"
         element={
-          <RequireAuth>
+          <RequireAuth skeleton={<DocumentPageSkeleton />}>
             <DocumentPage />
           </RequireAuth>
         }

@@ -4,24 +4,25 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FileText, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
-import { toast } from 'sonner';
 
 import { PdfViewer } from '../components/LazyPdfViewer';
 import { PipelineTimeline } from '../components/PipelineTimeline';
 import { ResultsView } from '../components/results/ResultsView';
+import { DocumentPageSkeleton, ResultsSkeleton } from '../components/skeletons';
 import { JobStatusBadge } from '../components/status';
 import { Alert, Button, Card, Skeleton, Spinner } from '../components/ui/primitives';
+import { TAB_ITEM, TabIndicator, useTabIndicator } from '../components/ui/tab-indicator';
 import { ApiRequestError } from '../lib/api';
 import { jobFailureMessage } from '../lib/messages';
 import { qk, useDocument, useJob, useResults, useRetryJob } from '../lib/queries';
+import { notify } from '../lib/toast';
 import { useJobStream } from '../lib/useJobStream';
 import { usePageTitle } from '../lib/usePageTitle';
 import { formatDuration } from '../lib/utils';
 
 type Pane = 'results' | 'document';
 
-const PANE_TAB =
-  'flex-1 rounded-md px-3 py-1.5 text-sm text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-600 data-[state=active]:bg-brand-700 data-[state=active]:text-white';
+const PANE_TAB = `${TAB_ITEM} flex-1`;
 
 export function DocumentPage() {
   const { id = '' } = useParams();
@@ -37,16 +38,10 @@ export function DocumentPage() {
   const [page, setPage] = useState(1);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [pane, setPane] = useState<Pane>('results');
+  const { listRef: paneList, indicatorRef: paneIndicator } = useTabIndicator<HTMLDivElement>(pane);
   usePageTitle(doc.data?.filename ?? (doc.isError ? 'Document not found' : 'Document'));
 
-  if (doc.isLoading)
-    return (
-      <div className="space-y-4" aria-busy="true">
-        <Spinner label="Loading document…" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </div>
-    );
+  if (doc.isLoading) return <DocumentPageSkeleton />;
   if (doc.isError) {
     const notFound = doc.error instanceof ApiRequestError && doc.error.status === 404;
     return (
@@ -73,10 +68,10 @@ export function DocumentPage() {
     if (!jobId) return;
     retry.mutate(jobId, {
       onSuccess: () => {
-        toast.success('Retry queued');
+        notify.success('Retry queued');
         void qc.invalidateQueries({ queryKey: qk.document(id) });
       },
-      onError: (e) => toast.error(e.message),
+      onError: (e) => notify.error(e.message),
     });
   };
 
@@ -108,7 +103,7 @@ export function DocumentPage() {
         </div>
       </div>
 
-      {job.isLoading && <Spinner label="Loading job status…" />}
+      {job.isLoading && <Skeleton className="h-10 w-full rounded-xl" />}
       {job.isError && (
         <Alert tone="danger" title="Could not load job status">
           {job.error.message}
@@ -138,9 +133,11 @@ export function DocumentPage() {
           viewer keeps its page when switching). */}
       <Tabs.Root value={pane} onValueChange={(v) => setPane(v as Pane)}>
         <Tabs.List
-          className="mb-4 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 lg:hidden"
+          ref={paneList}
+          className="relative mb-4 flex gap-1 rounded-lg border border-slate-200 bg-white p-1 lg:hidden"
           aria-label="View"
         >
+          <TabIndicator ref={paneIndicator} />
           <Tabs.Trigger value="results" className={PANE_TAB}>
             Results
           </Tabs.Trigger>
@@ -175,13 +172,7 @@ export function DocumentPage() {
             forceMount
             className="min-w-0 data-[state=inactive]:hidden lg:data-[state=inactive]:block"
           >
-            {done && results.isLoading && (
-              <div className="space-y-3" aria-busy="true">
-                <Spinner label="Loading results…" />
-                <Skeleton className="h-40 w-full" />
-                <Skeleton className="h-72 w-full" />
-              </div>
-            )}
+            {done && results.isLoading && <ResultsSkeleton />}
             {results.isError && (
               <Alert tone="danger" title="Could not load results">
                 {results.error.message}

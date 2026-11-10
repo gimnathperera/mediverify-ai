@@ -3,6 +3,7 @@ import * as Tabs from '@radix-ui/react-tabs';
 import { useEffect, useRef, useState } from 'react';
 
 import { CitationSheet } from '../CitationSheet';
+import { TAB_ITEM, TabIndicator, useTabIndicator } from '../ui/tab-indicator';
 
 import { CriticalPointsList } from './CriticalPointsList';
 import { verificationAnchor } from './labels';
@@ -11,9 +12,6 @@ import { SummaryCard } from './SummaryCard';
 import { VerificationPanel } from './VerificationPanel';
 
 type Section = 'issues' | 'critical' | 'meds';
-
-const TAB_CLASS =
-  'whitespace-nowrap rounded-md px-3 py-1.5 text-sm text-slate-700 focus-visible:outline-2 focus-visible:outline-brand-600 data-[state=active]:bg-brand-700 data-[state=active]:text-white';
 
 export function ResultsView({
   results,
@@ -26,6 +24,7 @@ export function ResultsView({
   const [filter, setFilter] = useState<VerificationStatus | null>(null);
   const [cite, setCite] = useState<{ c: CitationDto; heading: string } | null>(null);
   const pendingFocus = useRef<string | null>(null);
+  const { listRef: tabList, indicatorRef: tabIndicator } = useTabIndicator<HTMLDivElement>(section);
 
   // After switching to the verification tab from a critical point, move focus to that card.
   useEffect(() => {
@@ -51,16 +50,18 @@ export function ResultsView({
 
       <Tabs.Root value={section} onValueChange={(v) => setSection(v as Section)}>
         <Tabs.List
-          className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1"
+          ref={tabList}
+          className="relative flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1"
           aria-label="Result sections"
         >
-          <Tabs.Trigger value="issues" className={TAB_CLASS}>
+          <TabIndicator ref={tabIndicator} />
+          <Tabs.Trigger value="issues" className={TAB_ITEM}>
             Verification{flagged ? ` · ${flagged} flagged` : ''}
           </Tabs.Trigger>
-          <Tabs.Trigger value="critical" className={TAB_CLASS}>
+          <Tabs.Trigger value="critical" className={TAB_ITEM}>
             Critical points · {results.criticalPoints.length}
           </Tabs.Trigger>
-          <Tabs.Trigger value="meds" className={TAB_CLASS}>
+          <Tabs.Trigger value="meds" className={TAB_ITEM}>
             Medications · {results.medications.length}
           </Tabs.Trigger>
         </Tabs.List>

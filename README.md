@@ -466,8 +466,8 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 pnpm test:unit          # 38 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
                         #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
                         #           injection, error classification, bounded concurrency, dependency pins
-pnpm test:web           # 47 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
-pnpm test:integration   # 42 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+pnpm test:web           # 59 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
+pnpm test:integration   # 43 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
 pnpm test:coverage      # all three, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode:
                         #   reviewer flow + axe WCAG 2.1 AA scan of every page (incl. colour contrast)
@@ -486,8 +486,8 @@ The integration tests break down as follows:
 - **API (13):** auth, cookie flags and argon2, CSRF, 401s on every route, 202 atomic upload, validation, **transaction
   rollback** via an injected fault, duplicates, **IDOR across every route including SSE**, and SSE replay, resume and
   live streaming.
-- **Worker reliability (6):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
-  reaper, and zombie-lease protection.
+- **Worker reliability (7):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
+  reaper, zombie-lease protection, and surviving a dropped LISTEN connection (database restart).
 - **Deployment limits (2):** sign-up disabled, per-user daily run budget (duplicates free, retries counted).
 
 The **web tests** (`apps/web/test`) render real components with the app's providers. The API is mocked with MSW,
@@ -532,7 +532,7 @@ Coverage (unit + web + integration, 2026-11-10): 83.8% statements, 80.6% branche
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 38 unit, 47 web, 42 integration and
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 38 unit, 59 web, 43 integration and
 > 6 Playwright tests (smoke + accessibility, desktop + Pixel 7) pass, with coverage thresholds enforced. The new web
 > tests, accessibility scan and bundle budget have not run in GitHub Actions yet. Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
 > the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.

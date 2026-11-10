@@ -11,7 +11,7 @@ import { useId, useRef, useState } from 'react';
 
 import { cn, formatBytes } from '../lib/utils';
 
-import { Alert, Button, Card, Label } from './ui/primitives';
+import { Alert, Button, Card, Label, LoadingRegion, Select, Skeleton } from './ui/primitives';
 
 export async function validateFile(file: File): Promise<string | null> {
   const ext = extensionOf(file.name);
@@ -75,23 +75,27 @@ export function UploadPanel({
 
       <div className="mt-4 space-y-1.5">
         <Label htmlFor={selectId}>Reference document</Label>
-        <select
-          id={selectId}
-          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:opacity-60"
-          value={refId}
-          onChange={(e) => setSelectedRef(e.target.value)}
-          disabled={referencesLoading || !references?.length}
-        >
-          {referencesLoading && <option>Loading references…</option>}
-          {!referencesLoading && !references?.length && (
-            <option>No reference documents available</option>
-          )}
-          {references?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title} — rev. {r.versionLabel}
-            </option>
-          ))}
-        </select>
+        {referencesLoading ? (
+          <LoadingRegion label="Loading reference documents">
+            <Skeleton className="h-10 w-full" />
+          </LoadingRegion>
+        ) : (
+          <Select
+            id={selectId}
+            value={refId}
+            onChange={(e) => setSelectedRef(e.target.value)}
+            disabled={referencesLoading || !references?.length}
+          >
+            {!referencesLoading && !references?.length && (
+              <option>No reference documents available</option>
+            )}
+            {references?.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.title} — rev. {r.versionLabel}
+              </option>
+            ))}
+          </Select>
+        )}
         {ref && (
           <p className="flex items-center gap-1 text-xs text-slate-600">
             <Info className="h-3.5 w-3.5" aria-hidden />

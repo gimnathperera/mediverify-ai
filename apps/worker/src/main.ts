@@ -17,6 +17,7 @@ import {
 import pino from 'pino';
 
 import { config } from './config.js';
+import { listenForJobs } from './queue-listener.js';
 
 const log = pino({
   base: { service: 'worker', worker_id: config.workerId },
@@ -25,10 +26,11 @@ const log = pino({
 
 async function main() {
   // Each job slot can run up to `verifyConcurrency` verification queries at once, plus heartbeat,
-  // claim, reaper and LISTEN connections.
+  // claim and reaper connections.
+  // (The LISTEN connection is separate from this pool.)
   const pool = createPool(
     config.databaseUrl,
-    config.concurrency * (config.verifyConcurrency + 1) + 4,
+    config.concurrency * (config.verifyConcurrency + 1) + 3,
   );
   const deps: PipelineDeps = {
     pool,
@@ -102,10 +104,13 @@ async function main() {
     }
   }
 
-  // LISTEN for new jobs (instant pickup); polling remains as a fallback.
-  const listener = await pool.connect();
-  await listener.query(`LISTEN ${JOB_QUEUE_CHANNEL}`);
-  listener.on('notification', () => wake?.());
+  // LISTEN for new jobs (instant pickup); reconnects on its own, and polling remains as a fallback.
+  const listener = await listenForJobs({
+    connectionString: config.databaseUrl,
+    channel: JOB_QUEUE_CHANNEL,
+    onNotify: () => wake?.(),
+    log,
+  });
 
   const reaper = setInterval(() => {
     withTransaction(pool, (c) => jobsRepo.reapExpiredLeases(c, config.retryBaseDelaySeconds))
@@ -190,7 +195,7 @@ async function main() {
   await Promise.all(Array.from({ length: config.concurrency }, (_, i) => loop(i)));
   clearInterval(reaper);
   clearInterval(alive);
-  listener.release();
+  await listener.close();
   await pool.end();
   log.info({ event: 'worker.stopped' }, 'worker stopped');
 }

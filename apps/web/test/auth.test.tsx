@@ -78,7 +78,7 @@ describe('RequireAuth', () => {
       <Route
         path="/documents"
         element={
-          <RequireAuth>
+          <RequireAuth skeleton={<p>page skeleton</p>}>
             <p>secret documents</p>
           </RequireAuth>
         }

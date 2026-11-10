@@ -1,16 +1,18 @@
 import type { DocumentDto } from '@mediverify/shared';
 import { STAGE_LABELS } from '@mediverify/shared';
-import { FileText, RefreshCw, Search } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { FileText, RefreshCw, Search, X } from 'lucide-react';
+import { useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { toast } from 'sonner';
 
+import { DocumentListSkeleton } from '../components/skeletons';
 import { JobStatusBadge } from '../components/status';
-import { Alert, Button, Card, EmptyState, Input, Skeleton } from '../components/ui/primitives';
+import { Alert, Button, Card, EmptyState, Input } from '../components/ui/primitives';
+import { TabIndicator, useTabIndicator } from '../components/ui/tab-indicator';
 import { UploadPanel } from '../components/UploadPanel';
 import { useDocuments, useReferences, useUploadDocument, type PendingUpload } from '../lib/queries';
+import { notify } from '../lib/toast';
 import { usePageTitle } from '../lib/usePageTitle';
-import { cn, formatBytes, formatDateTime } from '../lib/utils';
+import { formatBytes, formatDateTime } from '../lib/utils';
 
 type StatusFilter = 'all' | 'processing' | 'completed' | 'failed';
 const FILTERS: { value: StatusFilter; label: string }[] = [
@@ -43,6 +45,9 @@ export function DocumentsPage() {
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const searchId = useId();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const { listRef: filterList, indicatorRef: filterIndicator } =
+    useTabIndicator<HTMLDivElement>(status);
   usePageTitle('Documents');
   const all = docs.data;
   const shown = useMemo(() => filterDocuments(all ?? [], query, status), [all, query, status]);
@@ -64,17 +69,15 @@ export function DocumentsPage() {
       {
         onSuccess: (r) => {
           setPending((p) => p.filter((x) => x.tempId !== tempId));
-          toast.success(
-            r.duplicate
-              ? 'Same document uploaded recently — opening the existing job.'
-              : 'Upload accepted — processing started.',
-          );
+          if (r.duplicate)
+            notify.info('You uploaded this document recently — opening the existing job.');
+          else notify.success('Upload accepted — processing started.');
           void navigate(`/documents/${r.documentId}`);
         },
         onError: (err) => {
           // Roll back the optimistic card into an explicit error state the user can dismiss.
           setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, error: err.message } : x)));
-          toast.error(err.message);
+          notify.error(err.message);
         },
       },
     );
@@ -82,7 +85,8 @@ export function DocumentsPage() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
-      <div>
+      {/* The upload panel stays in view while the document list scrolls. */}
+      <div className="lg:sticky lg:top-20 lg:self-start">
         <UploadPanel
           references={refs.data}
           referencesLoading={refs.isLoading}
@@ -121,31 +125,49 @@ export function DocumentsPage() {
                 aria-hidden
               />
               <Input
+                ref={searchRef}
                 id={searchId}
                 type="search"
                 placeholder="Search by file name"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && query) {
+                    e.preventDefault();
+                    setQuery('');
+                  }
+                }}
+                className="pl-9 pr-10"
               />
+              {query && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Clear search"
+                  className="absolute right-1.5 top-1/2 h-7 w-7 -translate-y-1/2 text-slate-500 hover:text-slate-900"
+                  onClick={() => {
+                    setQuery('');
+                    searchRef.current?.focus();
+                  }}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </Button>
+              )}
             </div>
             <div
-              className="flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1"
+              ref={filterList}
+              className="relative flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-white p-1"
               role="group"
               aria-label="Filter by status"
             >
+              <TabIndicator ref={filterIndicator} />
               {FILTERS.map((f) => (
                 <button
                   key={f.value}
                   type="button"
                   aria-pressed={status === f.value}
                   onClick={() => setStatus(f.value)}
-                  className={cn(
-                    'whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-brand-600',
-                    status === f.value
-                      ? 'bg-brand-700 text-white'
-                      : 'text-slate-700 hover:bg-slate-100',
-                  )}
+                  className="relative z-10 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors duration-200 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-brand-600 aria-[pressed=false]:hover:bg-slate-100 aria-pressed:text-white"
                 >
                   {f.label} <span className="tabular-nums">{countFor(f.value)}</span>
                 </button>
@@ -153,66 +175,66 @@ export function DocumentsPage() {
             </div>
           </div>
         )}
-        <ul className="space-y-2" aria-live="polite" aria-label="Documents">
-          {pending.map((p) => (
-            <li key={p.tempId}>
-              <Card className={p.error ? 'border-rose-300 p-4' : 'p-4'}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <FileText className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{p.filename}</p>
-                      <p className="text-xs text-slate-500">
-                        {formatBytes(p.sizeBytes)} ·{' '}
-                        {p.error ? 'Upload rejected' : `Uploading ${Math.round(p.progress * 100)}%`}
-                      </p>
+        {docs.isLoading && <DocumentListSkeleton />}
+        {/* Scrolls inside its own area once the list is longer than the viewport. */}
+        <div className="-m-1 max-h-[70dvh] overflow-y-auto overscroll-contain p-1 lg:max-h-[calc(100dvh-16rem)]">
+          <ul className="space-y-2" aria-live="polite" aria-label="Documents">
+            {pending.map((p) => (
+              <li key={p.tempId}>
+                <Card className={p.error ? 'border-rose-300 p-4' : 'p-4'}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <FileText className="h-5 w-5 shrink-0 text-slate-400" aria-hidden />
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{p.filename}</p>
+                        <p className="text-xs text-slate-500">
+                          {formatBytes(p.sizeBytes)} ·{' '}
+                          {p.error
+                            ? 'Upload rejected'
+                            : `Uploading ${Math.round(p.progress * 100)}%`}
+                        </p>
+                      </div>
                     </div>
+                    {p.error ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setPending((x) => x.filter((y) => y.tempId !== p.tempId))}
+                      >
+                        Dismiss
+                      </Button>
+                    ) : (
+                      <JobStatusBadge status="uploading" />
+                    )}
                   </div>
-                  {p.error ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setPending((x) => x.filter((y) => y.tempId !== p.tempId))}
-                    >
-                      Dismiss
-                    </Button>
-                  ) : (
-                    <JobStatusBadge status="uploading" />
+                  {p.error && (
+                    <p className="mt-2 text-sm text-rose-700" role="alert">
+                      {p.error}
+                    </p>
                   )}
-                </div>
-                {p.error && (
-                  <p className="mt-2 text-sm text-rose-700" role="alert">
-                    {p.error}
-                  </p>
-                )}
-              </Card>
-            </li>
-          ))}
-          {docs.isLoading &&
-            [0, 1, 2].map((i) => (
-              <li key={i}>
-                <Skeleton className="h-[68px] w-full" />
+                </Card>
               </li>
             ))}
-          {docs.isError && (
-            <li>
-              <Alert
-                tone="danger"
-                title="Could not load your documents"
-                action={
-                  <Button size="sm" variant="outline" onClick={() => void docs.refetch()}>
-                    Retry
-                  </Button>
-                }
-              >
-                {docs.error.message}
-              </Alert>
-            </li>
-          )}
-          {shown.map((d) => (
-            <DocumentRow key={d.id} d={d} />
-          ))}
-        </ul>
+            {docs.isError && (
+              <li>
+                <Alert
+                  tone="danger"
+                  title="Could not load your documents"
+                  action={
+                    <Button size="sm" variant="outline" onClick={() => void docs.refetch()}>
+                      Retry
+                    </Button>
+                  }
+                >
+                  {docs.error.message}
+                </Alert>
+              </li>
+            )}
+            {shown.map((d) => (
+              <DocumentRow key={d.id} d={d} />
+            ))}
+          </ul>
+        </div>
         {(all?.length ?? 0) > 0 && shown.length === 0 && (
           <EmptyState icon={<Search className="h-8 w-8" />} title="No documents match">
             <Button

@@ -7,16 +7,16 @@ Authoritative sources: `resources/assignment_brief_medical.pdf` (requirements), 
 
 ## Stack
 
-| Layer      | Choice                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------- |
-| Monorepo   | pnpm workspaces, Node 24, TypeScript 5.9 strict, ESM (`"type": "module"`, NodeNext)                            |
-| Web        | React 19 + Vite 7 + Tailwind 4 + shadcn-style components (Radix), TanStack Query, react-router 7, react-pdf 10 |
-| API        | NestJS 11 (Express), zod validation, global exception filter, cookie sessions                                  |
-| Worker     | Plain TS process; Postgres queue (`FOR UPDATE SKIP LOCKED` + leases); LibreOffice headless for DOCX→PDF        |
-| DB         | PostgreSQL 16 + pgvector; plain SQL migrations in `db/migrations`; raw SQL via `pg` (no ORM)                   |
-| LLM        | OpenAI (strict JSON-schema structured output) behind `LlmProvider`; `fixture` provider for deterministic tests |
-| Embeddings | Local `Xenova/bge-small-en-v1.5` (384-d) via `@huggingface/transformers` behind `EmbeddingProvider`            |
-| Tests      | Vitest (unit, web: jsdom + Testing Library + MSW + axe, integration vs real Postgres), Playwright E2E + axe    |
+| Layer      | Choice                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| Monorepo   | pnpm workspaces, Node 24, TypeScript 5.9 strict, ESM (`"type": "module"`, NodeNext)                                  |
+| Web        | React 19 + Vite 7 + Tailwind 4 + shadcn-style (Radix), TanStack Query, react-router 7, react-pdf 10, react-hot-toast |
+| API        | NestJS 11 (Express), zod validation, global exception filter, cookie sessions                                        |
+| Worker     | Plain TS process; Postgres queue (`FOR UPDATE SKIP LOCKED` + leases); LibreOffice headless for DOCX→PDF              |
+| DB         | PostgreSQL 16 + pgvector; plain SQL migrations in `db/migrations`; raw SQL via `pg` (no ORM)                         |
+| LLM        | OpenAI (strict JSON-schema structured output) behind `LlmProvider`; `fixture` provider for deterministic tests       |
+| Embeddings | Local `Xenova/bge-small-en-v1.5` (384-d) via `@huggingface/transformers` behind `EmbeddingProvider`                  |
+| Tests      | Vitest (unit, web: jsdom + Testing Library + MSW + axe, integration vs real Postgres), Playwright E2E + axe          |
 
 ## Layout
 
@@ -89,7 +89,7 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-10): GitHub Actions green on `main`; 38 unit + 47 web + 42 integration + 6 Playwright pass locally;
+- Status (2026-11-10): GitHub Actions green on `main`; 38 unit + 59 web + 43 integration + 6 Playwright pass locally;
   live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
@@ -103,10 +103,19 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   MSW handlers serve DTOs captured from a real fixture run (`test/fixtures/*.json`). Query by role/label (eslint
   testing-library); every page test runs `expectNoA11yViolations`; contrast is checked in `tests/e2e/a11y.spec.ts`.
   The PDF viewer is lazy-loaded and mocked in jsdom; pages are route-level lazy chunks; `pnpm size` enforces budgets.
-  UI conventions: user-facing error wording in `lib/messages.ts`; `usePageTitle` per page; accessible names must
+  UI conventions: user-facing error wording in `lib/messages.ts`; `usePageTitle` per page; toasts only via
+  `notify.success|error|warning|info|loading|promise` (`lib/toast.tsx`, react-hot-toast + `AppToaster`: top-center,
+  close button, warning/info icons in react-hot-toast's style; errors/warnings are `role=alert`); accessible names must
   contain the visible text (axe label-content-name-mismatch); no `text-slate-400` for text on white (contrast).
 - Deployment guards: `ALLOW_SIGNUP`, `DAILY_JOB_LIMIT` (uploads + retries per user per 24 h, checked in the
   job-creating tx). Verification runs `VERIFY_CONCURRENCY` medications in parallel (`mapWithConcurrency`).
+- UI building blocks (`components/ui`): `Select` (aligned chevron), `ConfirmDialog` (Radix AlertDialog, `destructive` for red; backdrop click cancels; use for
+  sign-out and other accidental-click actions), `useTabIndicator` + `TabIndicator` (sliding highlight for tabs and
+  segmented filters; items use `TAB_ITEM`), `LoadingRegion` + shaped skeletons in `components/skeletons.tsx`
+  (no page-level spinners; `RequireAuth` takes the page's `skeleton`). Animations honour prefers-reduced-motion;
+  the Playwright axe spec waits for finite animations before scanning.
+- Every long-lived pg `Client` (LISTEN) needs an `error` handler + reconnect (API `EventsHub`, worker
+  `queue-listener.ts`); an idle client that loses its connection otherwise crashes the process.
 - Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.
 
 ## RAG & verification rules (do not weaken)

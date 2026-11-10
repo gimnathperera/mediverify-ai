@@ -1,8 +1,11 @@
 import { LlmError, type LlmProvider, type LlmRequest } from '@mediverify/core';
 import { jobsRepo, withTransaction, type pg } from '@mediverify/db';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pino from 'pino';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { listenForJobs } from '../../apps/worker/src/queue-listener.js';
 import { createUser, deps, runJob, testPool, uploadFile } from '../helpers/db.js';
+import { TEST_DATABASE_URL } from '../helpers/env.js';
 
 let pool: pg.Pool;
 beforeAll(() => {
@@ -170,5 +173,40 @@ describe('queue safety', () => {
     expect(await runJob(pool, jobId, deps(pool, new StealLease()))).toBe('lease_lost');
     const s = await stages(jobId);
     expect(s.summarized!.status).toBe('running'); // untouched by the zombie; reaper/new owner handles it
+  });
+});
+
+describe('queue listener', () => {
+  it('survives a dropped LISTEN connection, reconnects, and keeps receiving notifications', async () => {
+    const channel = 'test_queue_listener';
+    const onNotify = vi.fn();
+    const listener = await listenForJobs({
+      connectionString: TEST_DATABASE_URL,
+      channel,
+      onNotify,
+      log: pino({ level: 'silent' }),
+      retryMs: 50,
+    });
+    try {
+      await pool.query(`NOTIFY ${channel}`);
+      await vi.waitFor(() => expect(onNotify).toHaveBeenCalledTimes(1));
+
+      // What a database restart does to an idle LISTEN connection. Before the fix this emitted an
+      // unhandled 'error' event and killed the worker process (Vitest fails on unhandled errors).
+      const { rows } = await pool.query<{ killed: boolean }>(
+        `SELECT pg_terminate_backend(pid) AS killed FROM pg_stat_activity
+          WHERE datname = current_database() AND query = $1`,
+        [`LISTEN ${channel}`],
+      );
+      expect(rows.map((r) => r.killed)).toEqual([true]);
+
+      // Reconnect pokes the worker once (to claim anything queued during the outage)…
+      await vi.waitFor(() => expect(onNotify).toHaveBeenCalledTimes(2), { timeout: 5000 });
+      // …and new notifications arrive on the new connection.
+      await pool.query(`NOTIFY ${channel}`);
+      await vi.waitFor(() => expect(onNotify).toHaveBeenCalledTimes(3));
+    } finally {
+      await listener.close();
+    }
   });
 });

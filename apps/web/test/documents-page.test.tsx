@@ -76,6 +76,25 @@ describe('DocumentsPage', () => {
     expect(within(list).getAllByRole('link')).toHaveLength(3);
   });
 
+  it('clears the search with its button or Escape, keeping focus in the field', async () => {
+    server.use(http.get('/api/documents', () => HttpResponse.json(LIST)));
+    const { user } = renderWithProviders(<DocumentsPage />);
+    const list = screen.getByRole('list', { name: 'Documents' });
+    await within(list).findAllByRole('link');
+    const search = screen.getByRole('searchbox', { name: /search documents/i });
+    expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
+
+    await user.type(search, 'summary');
+    expect(within(list).getAllByRole('link')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(search).toHaveValue('');
+    expect(search).toHaveFocus();
+    expect(within(list).getAllByRole('link')).toHaveLength(3);
+
+    await user.type(search, 'zzz{Escape}');
+    expect(search).toHaveValue('');
+  });
+
   it('shows an empty state for a new user', async () => {
     server.use(http.get('/api/documents', () => HttpResponse.json([])));
     renderWithProviders(<DocumentsPage />);

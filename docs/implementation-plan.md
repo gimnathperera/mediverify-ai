@@ -97,6 +97,23 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   search + status filter; per-page titles; skip link; live progress announcements; honest fixture badge; per-route
   error boundary; route-level code splitting (entry 572 → 479 KB); gzip bundle budget in CI. Coverage 57.6% → 83.8%.
 
+- 2026-11-10 (toasts): sonner replaced by react-hot-toast 2.6.1 (top-center, its own animations, pause on hover,
+  default durations). `AppToaster` adds a top-right close button; `notify.warning`/`notify.info` add amber "!" and
+  blue "i" icons that copy react-hot-toast's animated-circle icons. Errors and warnings are announced as alerts.
+  3 toaster tests; Playwright smoke + axe pass with toasts on screen. Found while verifying: the worker exits when
+  its LISTEN connection drops (no `error` handler); the API reconnects.
+- 2026-11-10 (worker resilience): fixed. The worker's LISTEN now uses a dedicated client with an `error` handler
+  and exponential-backoff reconnect (`apps/worker/src/queue-listener.ts`); on reconnect it polls once for jobs
+  queued during the outage. Integration test kills the backend with `pg_terminate_backend` (fails without the
+  handler); verified live: the worker logged `queue.listen_error` → `queue.listen_restored` and then ran a job.
+
+- 2026-11-10 (UI polish): document list scrolls inside its own area (page no longer grows; upload panel sticky);
+  reference selector uses a custom chevron; search has its own clear button (ghost-button hover, Escape clears,
+  focus kept); pointer cursor on all clickable controls; sliding tab/filter highlight + tab-panel fade
+  (reduced-motion aware); shaped skeletons replace the session/page/results/viewer spinners; sign-out asks for
+  confirmation in a themed alert dialog. +8 web tests; Playwright axe spec waits for animations to settle.
+  Entry bundle 140 → 154 KB gz (budget 160) from the alert dialog and skeletons.
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).

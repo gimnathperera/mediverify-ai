@@ -20,6 +20,17 @@ vi.stubGlobal(
   },
 );
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
+// react-hot-toast reads prefers-reduced-motion.
+window.matchMedia = (query: string) => ({
+  matches: false,
+  media: query,
+  onchange: null,
+  addEventListener: () => undefined,
+  removeEventListener: () => undefined,
+  addListener: () => undefined,
+  removeListener: () => undefined,
+  dispatchEvent: () => false,
+});
 window.scrollTo = vi.fn();
 
 beforeAll(() => {
