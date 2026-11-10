@@ -28,13 +28,17 @@ export async function extractPdfLines(
 ): Promise<{ pageCount: number; lines: Line[] }> {
   const pdfjs = await loadPdfJs();
   // Copy: pdf.js transfers/detaches the buffer it is given.
-  const doc = await pdfjs.getDocument({
+  const params: Parameters<typeof pdfjs.getDocument>[0] = {
     data: new Uint8Array(bytes),
-    isEvalSupported: false,
     disableFontFace: true,
     useSystemFonts: false,
     verbosity: 0,
-  }).promise;
+  };
+  // Uploaded PDFs are untrusted. pdf.js ≤ 5.4 compiled PDF functions with `new Function` unless
+  // `isEvalSupported: false`; 5.7 removed that code path and the option. Pass it untyped so the
+  // hardening still applies if an older pdf.js is ever resolved, and is ignored otherwise.
+  Object.assign(params, { isEvalSupported: false });
+  const doc = await pdfjs.getDocument(params).promise;
   const lines: Line[] = [];
   try {
     for (let p = 1; p <= doc.numPages; p++) {

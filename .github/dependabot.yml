@@ -9,6 +9,10 @@ updates:
     ignore:
       - dependency-name: '*'
         update-types: ['version-update:semver-major']
+      # Must equal the pdf.js version react-pdf pins (enforced by tests/unit/dependency-pins.test.ts).
+      # A lone bump breaks the web viewer at runtime and fails the whole minor-and-patch group, so it
+      # is upgraded by hand together with react-pdf.
+      - dependency-name: 'pdfjs-dist'
     groups:
       minor-and-patch:
         update-types: [minor, patch]
