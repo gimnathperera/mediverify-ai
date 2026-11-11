@@ -1,4 +1,4 @@
-import { STAGE_LABELS, type JobDto } from '@mediverify/shared';
+import { STAGE_LABELS, type JobDto } from '@mediverify/shared/client';
 import { Radio, WifiOff } from 'lucide-react';
 
 import type { ProgressNote, StreamState } from '../lib/useJobStream';
@@ -29,15 +29,29 @@ export function PipelineTimeline({
 }) {
   const done = job.stages.filter((s) => s.status === 'completed').length;
   const s = STREAM_LABEL[stream];
+  const running = job.stages.find((st) => st.status === 'running');
+  const announcement =
+    job.status === 'completed'
+      ? 'Processing complete.'
+      : job.status === 'failed'
+        ? 'Processing failed.'
+        : running
+          ? `${STAGE_LABELS[running.stage]}: ${done} of ${job.stages.length} stages done.`
+          : '';
   return (
     <Card className="p-4">
+      {!compact && (
+        <p className="sr-only" aria-live="polite" aria-atomic="true">
+          {announcement}
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold text-slate-900">Processing pipeline</h2>
           <JobStatusBadge status={job.status} />
         </div>
         {job.status !== 'completed' && job.status !== 'failed' && (
-          <span className={cn('inline-flex items-center gap-1 text-xs', s.tone)} aria-live="polite">
+          <span className={cn('inline-flex items-center gap-1 text-xs', s.tone)}>
             {stream === 'reconnecting' || stream === 'error' ? (
               <WifiOff className="h-3.5 w-3.5" aria-hidden />
             ) : (
@@ -57,7 +71,7 @@ export function PipelineTimeline({
       >
         <div
           className={cn(
-            'h-full transition-all',
+            'h-full transition-all motion-reduce:transition-none',
             job.status === 'failed' ? 'bg-rose-500' : 'bg-brand-600',
           )}
           style={{ width: `${(done / job.stages.length) * 100}%` }}

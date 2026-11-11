@@ -271,6 +271,32 @@ export async function searchMonographChunks(
   return rows;
 }
 
+/**
+ * Every field chunk of one monograph with both relevance signals for one query: cosine similarity
+ * and full-text rank. The full-text query ORs the query's lexemes (an AND of a long query matches
+ * nothing); fusion of the per-query rankings happens in core (`retrieveEvidence`). A monograph has
+ * ~10 field chunks, so no LIMIT is needed.
+ */
+export async function rankMonographFieldChunks(
+  q: Queryable,
+  monographId: string,
+  queryEmbedding: number[],
+  queryText: string,
+) {
+  const { rows } = await q.query<ReferenceChunkRow & { vector_score: number; text_score: number }>(
+    `WITH tq AS (
+       SELECT NULLIF(replace(plainto_tsquery('english', $3)::text, '&', '|'), '')::tsquery AS q
+     )
+     SELECT ${CHUNK_COLS},
+            1 - (embedding <=> $2::vector) AS vector_score,
+            COALESCE(ts_rank(tsv, (SELECT q FROM tq)), 0) AS text_score
+       FROM reference_chunks
+      WHERE monograph_id = $1 AND kind = 'field'`,
+    [monographId, toVectorLiteral(queryEmbedding), queryText],
+  );
+  return rows;
+}
+
 /** Unrestricted vector search over a whole reference (used only for evaluation/diagnostics). */
 export async function searchReferenceChunks(
   q: Queryable,

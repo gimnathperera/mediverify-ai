@@ -1,4 +1,4 @@
-import { MAX_UPLOAD_BYTES } from '@mediverify/shared';
+import { MAX_UPLOAD_BYTES } from '@mediverify/shared/client';
 import { describe, expect, it } from 'vitest';
 
 import { validateFile } from '../src/components/UploadPanel';

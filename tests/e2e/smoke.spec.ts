@@ -39,7 +39,7 @@ test('reviewer flow: login → upload → live pipeline → verification → cit
     timeout: 110_000,
   });
 
-  if (isMobile) await page.getByRole('tab', { name: 'results' }).click();
+  if (isMobile) await page.getByRole('tab', { name: 'Results' }).click();
   await expect(page.getByRole('heading', { name: 'Summary' })).toBeVisible();
   if (!isMobile) await expect(page.locator('.react-pdf__Page canvas').first()).toBeVisible(); // viewer renders
   await expect(page.getByRole('tab', { name: /Verification · 4 flagged/ })).toBeVisible();

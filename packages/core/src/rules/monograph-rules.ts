@@ -50,7 +50,7 @@ export interface MonographField {
   text: string; // paragraph text including the 'Label:' prefix
 }
 
-const NUM = '(\\d+(?:\\.\\d+)?|one|two|three|four|five|six|eight|ten|twelve)';
+const NUM = '(\\d+(?:\\.\\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|twelve)';
 
 function body(field: MonographField): string {
   return field.text.replace(new RegExp(`^${escapeRe(field.label)}:\\s*`), '');
@@ -168,11 +168,21 @@ export function extractMonographRules(fields: MonographField[]): MonographRules 
       }
       // Duration limits, preferring imperative statements ("must not … beyond 4 weeks").
       const dur = new RegExp(
-        `(?:up to|beyond|exceed|no longer than|maximum of|not (?:be )?(?:used|continued) (?:for )?more than) ${NUM} weeks?`,
+        `(?:up to|beyond|exceed|no longer than|maximum of|not (?:be )?(?:used|continued) (?:for )?more than) ${NUM} (weeks?|days?|months?)`,
         'i',
       ).exec(sentence);
       if (dur && /duration|use|treatment|initiate|course/i.test(sentence)) {
-        const value = parseNumber(dur[1]!);
+        const n = parseNumber(dur[1]!);
+        const unit = dur[2]!.toLowerCase();
+        // Stored in weeks; days/months are converted.
+        const value =
+          n === null
+            ? null
+            : unit.startsWith('day')
+              ? n / 7
+              : unit.startsWith('month')
+                ? n * (52 / 12)
+                : n;
         const better =
           !rules.maxDurationWeeks ||
           (/must not/i.test(sentence) && !/must not/i.test(rules.maxDurationWeeks.evidence.quote));

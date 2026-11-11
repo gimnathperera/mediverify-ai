@@ -1,0 +1,10 @@
+{
+  "llmProvider": "fixture",
+  "llmModel": "fixture",
+  "llmConfigured": true,
+  "fixtureMode": true,
+  "maxUploadBytes": 10485760,
+  "signupEnabled": true,
+  "dailyJobLimit": 20,
+  "disclaimer": "Demo only — fictional documents for software evaluation. Not medical advice; do not use for clinical decisions."
+}

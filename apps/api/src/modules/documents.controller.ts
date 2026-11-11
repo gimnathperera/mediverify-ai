@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { documentsRepo, referencesRepo, withTransaction, type pg } from '@mediverify/db';
 import {
   ALLOWED_UPLOAD_EXTENSIONS,
+  documentListQuerySchema,
   DOCX_MIME,
   extensionOf,
   MAX_UPLOAD_BYTES,
@@ -10,13 +11,16 @@ import {
   sniffDocumentType,
   uploadFieldsSchema,
   type DocumentDto,
+  type DocumentPageDto,
   type UploadResponse,
   type UserDto,
 } from '@mediverify/shared';
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Inject,
   Param,
   Post,
@@ -32,7 +36,7 @@ import type { Logger } from 'pino';
 
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser } from '../common/auth.js';
-import { assertJobQuota } from '../common/quota.js';
+import { assertJobQuota, jobLimits } from '../common/quota.js';
 import { parseOrThrow, uuidParam } from '../common/zod.js';
 import type { AppConfig } from '../config.js';
 import { APP_CONFIG, LOGGER, PG_POOL, UPLOAD_FAULT_HOOK, type UploadFaultHook } from '../tokens.js';
@@ -97,7 +101,7 @@ export class DocumentsController {
         this.config.duplicateWindowSeconds,
       );
       if (dup) return { ...dup, duplicate: true };
-      await assertJobQuota(c, user.id, this.config.dailyJobLimit);
+      await assertJobQuota(c, user.id, jobLimits(this.config));
       const ids = await documentsRepo.insertUploadRecords(c, {
         ownerId: user.id,
         referenceId,
@@ -127,9 +131,34 @@ export class DocumentsController {
     return out;
   }
 
+  /** Paginated, server-filtered list: `?limit=25&cursor=…&status=all|processing|completed|failed&q=`. */
   @Get()
-  list(@CurrentUser() user: UserDto): Promise<DocumentDto[]> {
-    return documentsRepo.listDocumentsForOwner(this.pool, user.id);
+  list(@Query() query: unknown, @CurrentUser() user: UserDto): Promise<DocumentPageDto> {
+    const { limit, cursor, status, q } = parseOrThrow(documentListQuerySchema, query);
+    const after = cursor ? documentsRepo.decodeCursor(cursor) : null;
+    if (cursor && !after)
+      throw new ApiError(400, 'VALIDATION_FAILED', 'Invalid pagination cursor', [
+        { path: 'cursor', message: 'Invalid cursor' },
+      ]);
+    return documentsRepo.listDocumentsPage(this.pool, user.id, {
+      limit,
+      status,
+      search: q || undefined,
+      after,
+    });
+  }
+
+  /** Delete a document with its jobs and results. Other users' documents are a 404 (no existence leak). */
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Param('id') id: string, @CurrentUser() user: UserDto): Promise<void> {
+    const deleted = await documentsRepo.deleteDocumentForOwner(
+      this.pool,
+      uuidParam(id, 'Document'),
+      user.id,
+    );
+    if (!deleted) throw ApiError.notFound('Document');
+    this.log.info({ event: 'document.deleted', document_id: id }, 'document deleted');
   }
 
   @Get(':id')

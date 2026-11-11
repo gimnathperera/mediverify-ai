@@ -8,7 +8,13 @@ import {
   matchMonograph,
   similarMonographNames,
 } from '../src/verification/identity.js';
-import { mergeFindings, type ChunkLike } from '../src/verification/verify-medication.js';
+import {
+  classifyVerification,
+  exclusionApplies,
+  mergeFindings,
+  type ChunkLike,
+  type FindingOut,
+} from '../src/verification/verify-medication.js';
 
 const monographs = [
   'Velantine',
@@ -146,10 +152,25 @@ describe('deterministic dose checks', () => {
     expect(f.confidence).toBe('medium');
     expect(f.explanation).toMatch(/2 step\(s\) — at least 4 weeks/);
   });
-  it('treats an undocumented start as conflict with low confidence', () => {
+  it('reports an undocumented start as insufficient evidence, not a guessed conflict', () => {
     expect(dose(med({ isNewStart: null }))).toMatchObject({
-      verdict: 'conflict',
-      confidence: 'low',
+      verdict: 'unknown',
+      reason: 'insufficient_evidence',
+    });
+  });
+  it('compares mass units after conversion (0.05 g = 50 mg)', () => {
+    expect(dose(med({ doseValue: 0.05, doseUnit: 'g', doseRaw: '0.05 g' }))).toMatchObject({
+      verdict: 'consistent',
+    });
+    const unit = deterministicChecks(med({ doseValue: 0.05, doseUnit: 'g' }), cordizemRules).find(
+      (f) => f.field === 'unit',
+    );
+    expect(unit?.verdict).toBe('consistent');
+  });
+  it('never treats a range as a single dose', () => {
+    expect(dose(med({ doseValue: null, doseUnit: null, doseRaw: '50-100 mg' }))).toMatchObject({
+      verdict: 'unknown',
+      reason: 'insufficient_evidence',
     });
   });
   it('accepts a higher dose when prior therapy is documented (within max)', () => {
@@ -305,14 +326,56 @@ describe('merge: hallucination control', () => {
       [{ id: 'P1', chunk: ind }],
       [ind],
     );
-    expect(notListed[0]).toMatchObject({ verdict: 'not_addressed', quoteValid: true });
-    const excluded = mergeFindings(
+    expect(notListed[0]).toMatchObject({
+      verdict: 'not_addressed',
+      quoteValid: true,
+      reason: 'not_constrained',
+    });
+    // A restriction only counts when the discharge document shows it applies to this patient.
+    const adult = 'Patient: 58-year-old man admitted with atrial fibrillation.';
+    const notApplicable = mergeFindings(
       [],
       llmSays('Not for use in children under 12.'),
       [{ id: 'P1', chunk: ind }],
       [ind],
+      { primaryText: adult },
     );
-    expect(excluded[0]).toMatchObject({ verdict: 'conflict', quoteValid: true });
+    expect(notApplicable[0]).toMatchObject({
+      verdict: 'not_addressed',
+      reason: 'insufficient_evidence',
+    });
+    const child = 'Patient: 9-year-old child admitted with reflux symptoms.';
+    const applies = mergeFindings(
+      [],
+      llmSays('Not for use in children under 12.'),
+      [{ id: 'P1', chunk: ind }],
+      [ind],
+      { primaryText: child },
+    );
+    expect(applies[0]).toMatchObject({ verdict: 'conflict', quoteValid: true, reason: null });
+  });
+
+  it('rejects quotes too short to decide a verdict', () => {
+    const out = mergeFindings(
+      [],
+      {
+        overall_explanation: '',
+        fields: [
+          {
+            field: 'timing',
+            verdict: 'consistent',
+            prescribed: 'morning',
+            reference_constraint: 'morning',
+            explanation: 'ok',
+            passage_id: 'P1',
+            quote: 'morning',
+          },
+        ],
+      },
+      passages,
+      [chunk],
+    );
+    expect(out[0]).toMatchObject({ verdict: 'unknown', reason: 'unverified', quoteValid: false });
   });
 
   it('re-anchors a valid quote when the model mislabels the passage id', () => {
@@ -336,5 +399,83 @@ describe('merge: hallucination control', () => {
       [chunk],
     );
     expect(out[0]).toMatchObject({ verdict: 'consistent', chunkId: 'c-std', quoteValid: true });
+  });
+});
+
+describe('status classification', () => {
+  const f = (
+    field: FindingOut['field'],
+    verdict: FindingOut['verdict'],
+    reason: FindingOut['reason'] = null,
+  ): FindingOut => ({
+    field,
+    verdict,
+    reason,
+    prescribedValue: null,
+    referenceConstraint: null,
+    explanation: '',
+    decidedBy: 'deterministic',
+    confidence: 'high',
+    chunkId: null,
+    quote: null,
+    quoteValid: false,
+  });
+  const core = [f('dose', 'consistent'), f('route', 'consistent'), f('frequency', 'consistent')];
+
+  it('supports only when core fields are consistent and the rest are consistent or unconstrained', () => {
+    expect(
+      classifyVerification([
+        ...core,
+        f('timing', 'not_addressed', 'not_constrained'),
+        f('duration', 'not_addressed', 'not_constrained'),
+        f('indication', 'consistent'),
+      ]).status,
+    ).toBe('supported');
+  });
+
+  it('is incomplete when a constrained field is not stated or unverified, and says why', () => {
+    const r = classifyVerification([
+      ...core,
+      f('timing', 'not_addressed', 'not_stated'),
+      f('indication', 'unknown', 'unverified'),
+    ]);
+    expect(r.status).toBe('incomplete');
+    expect(r.gaps).toEqual([
+      { field: 'timing', reason: 'not_stated' },
+      { field: 'indication', reason: 'unverified' },
+    ]);
+  });
+
+  it('requires a confirmed dose and checked core fields', () => {
+    expect(classifyVerification([f('dose', 'unknown', 'insufficient_evidence')]).status).toBe(
+      'incomplete',
+    );
+    expect(classifyVerification([f('dose', 'consistent')]).gaps).toEqual([
+      { field: 'route', reason: 'not_checked' },
+      { field: 'frequency', reason: 'not_checked' },
+    ]);
+  });
+
+  it('is contradicted by any conflict', () => {
+    expect(classifyVerification([...core, f('timing', 'conflict')]).status).toBe('contradicted');
+  });
+});
+
+describe('identity without strength or form', () => {
+  it('matches "Pravoxil 20 mg tablet" and "Pravoxil (simvastatin)", still never fuzzy', () => {
+    expect(matchMonograph('Pravoxil 20 mg tablet', monographs)?.name).toBe('Pravoxil');
+    expect(matchMonograph('Pravoxil (simvastatin)', monographs)?.name).toBe('Pravoxil');
+    expect(matchMonograph('Cordizem XR 100 mg', monographs)?.name).toBe('Cordizem-XR');
+    expect(matchMonograph('Pranixol 10 mg', monographs)).toBeNull();
+  });
+});
+
+describe('exclusion applicability', () => {
+  it('needs the excluded condition documented for this patient', () => {
+    expect(exclusionApplies('Contraindicated in pregnancy.', 'She is pregnant (18 weeks).')).toBe(
+      true,
+    );
+    expect(exclusionApplies('Contraindicated in pregnancy.', '58-year-old man.')).toBe(false);
+    expect(exclusionApplies('Not for use in children under 12.', undefined)).toBe(false);
   });
 });

@@ -1,12 +1,15 @@
 name: mediverify
 
 x-node-env: &node-env
-  DATABASE_URL: postgres://mediverify:mediverify@db:5432/mediverify
+  DATABASE_URL: postgres://mediverify:${POSTGRES_PASSWORD:-mediverify}@db:5432/mediverify
   LOG_LEVEL: ${LOG_LEVEL:-info}
 
-x-llm-env: &llm-env
-  LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+x-llm-env:
+  &llm-env # Empty = automatic: 'openai' when OPENAI_API_KEY is set, otherwise the labelled 'fixture' mode.
+  LLM_PROVIDER: ${LLM_PROVIDER:-}
   OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+  LLM_MAX_PROMPT_TOKENS: ${LLM_MAX_PROMPT_TOKENS:-60000}
   OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
   OPENAI_REASONING_EFFORT: ${OPENAI_REASONING_EFFORT:-low}
   LLM_TIMEOUT_MS: ${LLM_TIMEOUT_MS:-90000}
@@ -18,10 +21,12 @@ services:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: mediverify
-      POSTGRES_PASSWORD: mediverify
+      # Change for any shared deployment (also used in DATABASE_URL above).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediverify}
       POSTGRES_DB: mediverify
     ports:
-      - '${DB_HOST_PORT:-55432}:5432'
+      # Loopback only: the database is reachable from this machine (for local tools), not the network.
+      - '127.0.0.1:${DB_HOST_PORT:-55432}:5432'
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
@@ -50,11 +55,17 @@ services:
       <<: [*node-env, *llm-env]
       PORT: 3000
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8088}
+      # Empty = localhost and 127.0.0.1 on WEB_PORT (and the Vite dev port).
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      WEB_PORT: ${WEB_PORT:-8088}
       DUPLICATE_WINDOW_SECONDS: ${DUPLICATE_WINDOW_SECONDS:-300}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-true}
+      # Empty = on in fixture mode, off when a paid OpenAI key is configured.
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-}
       DAILY_JOB_LIMIT: ${DAILY_JOB_LIMIT:-20}
+      GLOBAL_DAILY_JOB_LIMIT: ${GLOBAL_DAILY_JOB_LIMIT:-200}
+      # nginx is one proxy hop in front of the API.
+      TRUST_PROXY: ${TRUST_PROXY:-1}
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:
@@ -78,6 +89,12 @@ services:
       VERIFY_CONCURRENCY: ${VERIFY_CONCURRENCY:-3}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
       STAGE_TIMEOUT_MS: ${STAGE_TIMEOUT_MS:-180000}
+      MAX_DOCUMENT_PAGES: ${MAX_DOCUMENT_PAGES:-50}
+      MAX_DOCUMENT_CHARS: ${MAX_DOCUMENT_CHARS:-150000}
+      LLM_PRICE_INPUT_PER_MTOK: ${LLM_PRICE_INPUT_PER_MTOK:-}
+      LLM_PRICE_OUTPUT_PER_MTOK: ${LLM_PRICE_OUTPUT_PER_MTOK:-}
+      EVENT_RETENTION_DAYS: ${EVENT_RETENTION_DAYS:-30}
+      DOCUMENT_RETENTION_DAYS: ${DOCUMENT_RETENTION_DAYS:-0}
     depends_on:
       migrate: { condition: service_completed_successfully }
     healthcheck:

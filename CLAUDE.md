@@ -7,16 +7,16 @@ Authoritative sources: `resources/assignment_brief_medical.pdf` (requirements), 
 
 ## Stack
 
-| Layer      | Choice                                                                                                         |
-| ---------- | -------------------------------------------------------------------------------------------------------------- |
-| Monorepo   | pnpm workspaces, Node 24, TypeScript 5.9 strict, ESM (`"type": "module"`, NodeNext)                            |
-| Web        | React 19 + Vite 7 + Tailwind 4 + shadcn-style components (Radix), TanStack Query, react-router 7, react-pdf 10 |
-| API        | NestJS 11 (Express), zod validation, global exception filter, cookie sessions                                  |
-| Worker     | Plain TS process; Postgres queue (`FOR UPDATE SKIP LOCKED` + leases); LibreOffice headless for DOCX→PDF        |
-| DB         | PostgreSQL 16 + pgvector; plain SQL migrations in `db/migrations`; raw SQL via `pg` (no ORM)                   |
-| LLM        | OpenAI (strict JSON-schema structured output) behind `LlmProvider`; `fixture` provider for deterministic tests |
-| Embeddings | Local `Xenova/bge-small-en-v1.5` (384-d) via `@huggingface/transformers` behind `EmbeddingProvider`            |
-| Tests      | Vitest (unit + integration vs real Postgres), supertest, Playwright E2E                                        |
+| Layer      | Choice                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| Monorepo   | pnpm workspaces, Node 24, TypeScript 5.9 strict, ESM (`"type": "module"`, NodeNext)                                  |
+| Web        | React 19 + Vite 7 + Tailwind 4 + shadcn-style (Radix), TanStack Query, react-router 7, react-pdf 10, react-hot-toast |
+| API        | NestJS 11 (Express), zod validation, global exception filter, cookie sessions                                        |
+| Worker     | Plain TS process; Postgres queue (`FOR UPDATE SKIP LOCKED` + leases); LibreOffice headless for DOCX→PDF              |
+| DB         | PostgreSQL 16 + pgvector; plain SQL migrations in `db/migrations`; raw SQL via `pg` (no ORM)                         |
+| LLM        | OpenAI (strict JSON-schema structured output) behind `LlmProvider`; `fixture` provider for deterministic tests       |
+| Embeddings | Local `Xenova/bge-small-en-v1.5` (384-d) via `@huggingface/transformers` behind `EmbeddingProvider`                  |
+| Tests      | Vitest (unit, web: jsdom + Testing Library + MSW + axe, integration vs real Postgres), Playwright E2E + axe          |
 
 ## Layout
 
@@ -41,11 +41,13 @@ pnpm db:migrate && pnpm db:seed        # against DATABASE_URL
 pnpm dev:api | pnpm dev:worker | pnpm dev:web
 pnpm lint | pnpm lint:fix | pnpm format | pnpm format:check | pnpm typecheck
 pnpm test:unit                         # no DB needed
+pnpm test:web                          # React components in jsdom (MSW-mocked API), no DB needed
+pnpm size                              # web build + gzip bundle budget (scripts/check-bundle-size.mjs)
 pnpm test:integration                  # needs Postgres (TEST_DATABASE_URL)
 pnpm test:e2e                          # Playwright vs running Compose stack (fixture mode)
 pnpm eval                              # retrieval + classification eval (fixture LLM) → docs/evaluation.md numbers
 pnpm eval:live                         # same with real OpenAI (needs OPENAI_API_KEY) — label results as live
-pnpm run ci                            # format:check + lint + typecheck + unit + integration (mirrors CI; `pnpm ci` is a pnpm builtin)
+pnpm run ci                            # format:check + lint + typecheck + unit + web + integration (mirrors CI; `pnpm ci` is a pnpm builtin)
 ```
 
 ## Conventions
@@ -87,7 +89,9 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-10): GitHub Actions green on `main`; 46 unit + 42 integration + 4 Playwright pass locally;
+- Status (2026-11-11): 76 unit + 69 web + 53 integration + 6 Playwright pass locally (coverage 85%); the hardening
+  sprint (migration 0002, RRF retrieval, status reasons, limits/cancellation/usage, pagination, delete, retention) has
+  not run in GitHub Actions yet; a post-sprint live eval (gpt-5.4-mini) passed 6/6 with 18k tokens recorded;
   live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
@@ -96,10 +100,30 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
 - Security: CI fails on high/critical advisories in production deps (`pnpm audit --prod --audit-level=high`).
   `sharp` is overridden to 0.35.5 in `pnpm-workspace.yaml` (transformers pins a vulnerable ^0.34). `pdfjs-dist`
   stays 5.4.296 in core and web (react-pdf's pin; 5.6.83–6.2.107 have CVE-2026-16633); Dependabot ignores it.
-- Web tests live in `apps/web/test` (pure logic: `applyEvent`, `validateFile`); `pnpm test:coverage` enforces the
-  thresholds in `vitest.config.ts`. The PDF viewer is lazy-loaded (`LazyPdfViewer.tsx`); web builds ship no source maps.
+- Web tests (`apps/web/test`, Vitest project `web`): custom env `jsdom-environment.ts` keeps Node's AbortController
+  (jsdom's breaks Node fetch/MSW); `setup.ts` resolves relative `/api` URLs, stubs EventSource (`FakeEventSource`).
+  MSW handlers serve DTOs captured from a real fixture run (`test/fixtures/*.json`). Query by role/label (eslint
+  testing-library); every page test runs `expectNoA11yViolations`; contrast is checked in `tests/e2e/a11y.spec.ts`.
+  The PDF viewer is lazy-loaded and mocked in jsdom; pages are route-level lazy chunks; `pnpm size` enforces budgets.
+  UI conventions: user-facing error wording in `lib/messages.ts`; `usePageTitle` per page; toasts only via
+  `notify.success|error|warning|info|loading|promise` (`lib/toast.tsx`, react-hot-toast + `AppToaster`: top-center,
+  close button, warning/info icons in react-hot-toast's style; errors/warnings are `role=alert`); accessible names must
+  contain the visible text (axe label-content-name-mismatch); no `text-slate-400` for text on white (contrast).
 - Deployment guards: `ALLOW_SIGNUP`, `DAILY_JOB_LIMIT` (uploads + retries per user per 24 h, checked in the
   job-creating tx). Verification runs `VERIFY_CONCURRENCY` medications in parallel (`mapWithConcurrency`).
+- UI building blocks (`components/ui`): `Select` (aligned chevron), `ConfirmDialog` (Radix AlertDialog, `destructive` for red; backdrop click cancels; use for
+  sign-out and other accidental-click actions), `useTabIndicator` + `TabIndicator` (sliding highlight for tabs and
+  segmented filters; items use `TAB_ITEM`), `LoadingRegion` + shaped skeletons in `components/skeletons.tsx`
+  (no page-level spinners; `RequireAuth` takes the page's `skeleton`). Animations honour prefers-reduced-motion;
+  the Playwright axe spec waits for finite animations before scanning.
+- Retrieval: `retrieveEvidence` (packages/core/src/verification/retrieval.ts) = per-aspect queries + RRF over vector and
+  OR-tsquery rankings (`rankMonographFieldChunks`); the eval's ablation compares it with vector-only and the old mix.
+- LLM calls are scoped per stage by the runner (`scopeLlm`: AbortSignal + stage logger + usage sink); a stage timeout
+  aborts model calls and LibreOffice; usage is summed into `jobs.llm_usage` (cost only if `LLM_PRICE_*` set).
+- Web imports `@mediverify/shared/client` only (zod-free; ESLint enforces it). Document list = `useDocumentPages`
+  (server-side paging/filter); API list returns `{items, nextCursor, counts}`.
+- Every long-lived pg `Client` (LISTEN) needs an `error` handler + reconnect (API `EventsHub`, worker
+  `queue-listener.ts`); an idle client that loses its connection otherwise crashes the process.
 - Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.
 
 ## RAG & verification rules (do not weaken)
@@ -109,16 +133,23 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
    chunks are separate kinds and are never treated as a monograph.
 2. **Identity gate first**: normalized exact name or explicit alias match against `reference_monographs`. Fuzzy/vector
    similarity NEVER establishes identity (Pranixol ≠ Pravoxil). Similar names may be shown as "not matched" only.
-3. **Statuses**: `supported` (monograph exists, all checked parameters consistent) · `contradicted` (≥1 parameter conflicts) ·
-   `unsupported` (no monograph in this reference — a coverage gap, not "unsafe") · `incomplete` (parsing/indexing/
-   retrieval/model failure — never mislabel as unsupported).
+3. **Statuses** (`classifyVerification` in verify-medication.ts): `contradicted` (≥1 field conflicts) · `supported` (dose
+   confirmed consistent, route/frequency consistent or unconstrained, every other field consistent or `not_constrained`)
+   · `unsupported` (no monograph — a coverage gap, not "unsafe") · `incomplete` (anything not confirmed: missing value,
+   insufficient evidence, rejected model claim, retrieval/model failure — never mislabel as unsupported or supported).
+   Every non-decisive finding carries a `reason` (`not_constrained | not_stated | insufficient_evidence | unverified`).
+   One medication's model failure makes only that medication incomplete.
 4. Compare dose, unit, route, frequency, timing, duration, indication against the **matched** monograph — not just name
    existence or max dose. New start above standard dose without documented titration conflicts with a titration schedule.
 5. Deterministic checks for numeric/time constraints; the LLM interprets nuance and explains, using only retrieved passages.
    Monograph rules are parsed **deterministically at index time** (`packages/core/src/rules/monograph-rules.ts`), each with
    a verbatim quote, stored in `reference_monographs.rules` — no LLM in reference indexing.
    A deterministic conflict with a validated quote is authoritative; an LLM-only conflict counts only if its quote validates
-   (and, for indication, only if the quote states an exclusion/restriction — absence from the list is not a conflict).
+   (≥3-word quote); for indication it must also state an exclusion/restriction AND the excluded condition must be
+   documented for this patient (`exclusionApplies`) — otherwise `insufficient_evidence`, never a conflict.
+   "New start" (titration rule) needs a validated document quote; without one the dose is `insufficient_evidence`.
+   Parsers never collapse ranges/combination doses; mass units convert (g/mg/mcg); timing compares time of day and
+   meal relation separately (`compareTimings`).
 6. **Quote validation**: every citation's quote must appear (whitespace/quote-normalized) in the cited chunk, and the chunk
    must belong to the matched monograph (or the coverage note for unsupported). Invalid evidence is dropped/marked, never shown as valid.
 7. Summary and critical points use **only the primary document** (table rows are shown to the model as `a | b`; quote

@@ -1,10 +1,16 @@
-import type { FieldVerdict, VerificationStatus, VerifiedField } from '@mediverify/shared';
+import {
+  CORE_VERIFIED_FIELDS,
+  type FieldVerdict,
+  type FindingReason,
+  type VerificationStatus,
+  type VerifiedField,
+} from '@mediverify/shared';
 
 import { VERIFY_SYSTEM, verifyUser } from '../llm/prompts.js';
 import { verifyOutput, type VerifyOutput } from '../llm/schemas.js';
 import type { LlmProvider } from '../llm/types.js';
 import type { Evidence, MonographRules } from '../rules/monograph-rules.js';
-import { quoteAppearsIn, truncate } from '../text.js';
+import { normalizeForMatch, quoteAppearsIn, truncate } from '../text.js';
 
 import { deterministicChecks, type DetFinding, type MedicationForCheck } from './deterministic.js';
 import {
@@ -23,7 +29,10 @@ export interface ChunkLike {
 }
 
 export interface RetrievedChunk extends ChunkLike {
+  /** Fused rank score (RRF) used for ordering. */
   score: number;
+  /** Best cosine similarity to any query: the relevance gate compares this with `minScore`. */
+  vectorScore: number;
 }
 
 export interface MonographForVerify extends MonographIdentity {
@@ -34,12 +43,17 @@ export interface MonographForVerify extends MonographIdentity {
 export interface VerifyDeps {
   llm: LlmProvider;
   /** Ranked field passages *within the matched monograph* (identity already established). */
-  retrieve(monographId: string, query: string): Promise<RetrievedChunk[]>;
+  retrieve(
+    monographId: string,
+    med: MedicationForCheck,
+  ): Promise<{ chunks: RetrievedChunk[]; queries: { aspect: string; text: string }[] }>;
   monographChunks(monographId: string): Promise<ChunkLike[]>;
   primaryContext(med: MedicationForCheck): Promise<string[]>;
   coverageChunk: ChunkLike | null;
   minScore: number;
   referenceTitle: string;
+  /** Full text of the primary document (to check that a restriction applies to this patient). */
+  primaryText?: string;
 }
 
 export interface FindingOut {
@@ -53,6 +67,8 @@ export interface FindingOut {
   chunkId: string | null;
   quote: string | null;
   quoteValid: boolean;
+  /** Why the verdict is not decisive (see FINDING_REASONS); null for consistent/conflict. */
+  reason: FindingReason | null;
 }
 
 export interface VerificationOut {
@@ -65,7 +81,7 @@ export interface VerificationOut {
   coverageChunkId: string | null;
   retrieval: {
     query: string | null;
-    chunks: { id: string; score: number; field: string | null }[];
+    chunks: { id: string; score: number; vectorScore?: number; field: string | null }[];
     droppedBelowThreshold: number;
   };
   findings: FindingOut[];
@@ -166,6 +182,7 @@ export async function verifyMedication(
             : `No supporting passage exists: the reference has no monograph for ${med.drugName}.`,
           decidedBy: 'deterministic',
           confidence: 'high',
+          reason: 'not_constrained',
           chunkId: cov?.id ?? null,
           quote: covQuote,
           quoteValid: Boolean(cov && covQuote && quoteAppearsIn(covQuote, cov.text)),
@@ -180,14 +197,14 @@ export async function verifyMedication(
   } as const;
   const allChunks = await deps.monographChunks(monograph.id);
   const fieldChunks = allChunks.filter((c) => c.fieldLabel !== null);
-  const query = retrievalQuery(med);
-  const retrieved = await deps.retrieve(monograph.id, query);
-  const relevant = retrieved.filter((c) => c.score >= deps.minScore);
+  const { chunks: retrieved, queries } = await deps.retrieve(monograph.id, med);
+  const relevant = retrieved.filter((c) => c.vectorScore >= deps.minScore);
   const retrieval = {
-    query,
+    query: queries.map((q) => `${q.aspect}: ${q.text}`).join(' | '),
     chunks: retrieved.map((c) => ({
       id: c.id,
       score: Number(c.score.toFixed(4)),
+      vectorScore: Number(c.vectorScore.toFixed(4)),
       field: c.fieldLabel,
     })),
     droppedBelowThreshold: retrieved.length - relevant.length,
@@ -212,7 +229,7 @@ export async function verifyMedication(
   const passageChunks: RetrievedChunk[] = [...relevant];
   for (const c of fieldChunks) {
     if (evidenceLabels.has(c.fieldLabel ?? '') && !passageChunks.some((p) => p.id === c.id))
-      passageChunks.push({ ...c, score: 0 });
+      passageChunks.push({ ...c, score: 0, vectorScore: 0 });
   }
   const passages = passageChunks.map((c, i) => ({ id: `P${i + 1}`, chunk: c }));
 
@@ -245,21 +262,22 @@ export async function verifyMedication(
     maxOutputTokens: 3000,
   });
 
-  const findings = mergeFindings(det, llmOut, passages, fieldChunks);
+  const findings = mergeFindings(det, llmOut, passages, fieldChunks, {
+    ...(deps.primaryText !== undefined ? { primaryText: deps.primaryText } : {}),
+  });
+  const { status, gaps } = classifyVerification(findings);
   const conflicts = findings.filter((f) => f.verdict === 'conflict');
-  const dose = findings.find((f) => f.field === 'dose');
-  let status: VerificationStatus;
   let summary: string;
-  if (conflicts.length > 0) {
-    status = 'contradicted';
+  if (status === 'contradicted') {
     summary = `Conflicts with the ${monograph.name} monograph on ${conflicts.map((c) => c.field).join(', ')}. ${conflicts[0]!.explanation}`;
-  } else if (dose?.verdict === 'consistent') {
-    status = 'supported';
+  } else if (status === 'supported') {
     const ok = findings.filter((f) => f.verdict === 'consistent').map((f) => f.field);
-    summary = `Consistent with the ${monograph.name} monograph (${ok.join(', ')}). ${truncate(llmOut.overall_explanation, 300)}`;
+    const free = findings.filter((f) => f.reason === 'not_constrained').map((f) => f.field);
+    summary = `Consistent with the ${monograph.name} monograph (${ok.join(', ')})${free.length ? `; the monograph sets no rule for ${free.join(', ')}` : ''}. ${truncate(llmOut.overall_explanation, 300)}`;
   } else {
-    status = 'incomplete';
-    summary = `A ${monograph.name} monograph exists but the dose could not be confirmed against it; no conflicts were found.`;
+    summary = `A ${monograph.name} monograph exists and no conflicts were found, but ${gaps
+      .map((g) => `${g.field} (${GAP_LABEL[g.reason]})`)
+      .join(', ')} could not be confirmed. Not marked as supported.`;
   }
   return {
     status,
@@ -271,6 +289,71 @@ export async function verifyMedication(
     retrieval,
     findings,
   };
+}
+
+const GAP_LABEL: Record<FindingReason | 'not_checked', string> = {
+  not_constrained: 'no rule in the monograph',
+  not_stated: 'not stated in the prescription',
+  insufficient_evidence: 'insufficient evidence',
+  unverified: 'model claim could not be verified',
+  not_checked: 'not checked',
+};
+
+/**
+ * Medication status from its findings:
+ * - contradicted: any field conflicts with the matched monograph;
+ * - supported: dose, route and frequency are confirmed consistent (dose must be — a monograph
+ *   without a standard dose can't support it; route/frequency may be unconstrained), and every
+ *   other field is consistent or not constrained by the monograph;
+ * - incomplete: otherwise — something meaningful could not be verified (listed in `gaps`).
+ */
+export function classifyVerification(findings: FindingOut[]): {
+  status: VerificationStatus;
+  gaps: { field: VerifiedField; reason: FindingReason | 'not_checked' }[];
+} {
+  if (findings.some((f) => f.verdict === 'conflict')) return { status: 'contradicted', gaps: [] };
+  const gaps: { field: VerifiedField; reason: FindingReason | 'not_checked' }[] = [];
+  for (const field of CORE_VERIFIED_FIELDS)
+    if (!findings.some((f) => f.field === field)) gaps.push({ field, reason: 'not_checked' });
+  for (const f of findings) {
+    if (f.verdict === 'consistent') continue;
+    const unconstrained = f.reason === 'not_constrained' && f.field !== 'dose';
+    if (!unconstrained) gaps.push({ field: f.field, reason: f.reason ?? 'insufficient_evidence' });
+  }
+  return { status: gaps.length ? 'incomplete' : 'supported', gaps };
+}
+
+const STOP_WORDS = new Set(
+  'with without patients patient history known severe active from that this have been should must never avoid only when used using other than more less under over aged years year their they which these those where while also into upon such each'.split(
+    ' ',
+  ),
+);
+
+/**
+ * Does a monograph restriction apply to *this* patient? The condition named after the exclusion
+ * phrase ("Not for use in children under 12" → children) must be documented in the discharge
+ * document; otherwise the restriction is not shown to apply and is not reported as a conflict.
+ * Deterministic and conservative: a missing match yields "insufficient evidence", never "safe".
+ */
+export function exclusionApplies(quote: string, primaryText: string | undefined): boolean {
+  if (!primaryText) return false;
+  const m = EXCLUSION_RE.exec(quote);
+  const clause = normalizeForMatch(m ? quote.slice(m.index + m[0].length) : quote);
+  const terms = [...new Set(clause.split(/[^a-z0-9]+/))].filter(
+    (w) => w.length >= 4 && !STOP_WORDS.has(w),
+  );
+  if (terms.length === 0) return false;
+  const hay = normalizeForMatch(primaryText);
+  // Light stemming: compare on a prefix so "children"/"child", "pregnancy"/"pregnant" match.
+  const stem = (w: string) => (w.length > 6 ? w.slice(0, w.length - 3) : w);
+  const hits = terms.filter((t) => new RegExp(`\\b${stem(t)}`).test(hay));
+  return hits.length >= Math.ceil(terms.length / 2);
+}
+
+/** A quote that decides a verdict must be substantive (not "once" or "10 mg"). */
+export function isDecisiveQuote(quote: string | null | undefined): boolean {
+  const q = normalizeForMatch(quote ?? '');
+  return q.length >= 12 && q.split(' ').length >= 3;
 }
 
 const EXCLUSION_RE =
@@ -298,6 +381,7 @@ export function mergeFindings(
   llm: VerifyOutput,
   passages: { id: string; chunk: ChunkLike }[],
   monographChunks: ChunkLike[],
+  context: { primaryText?: string } = {},
 ): FindingOut[] {
   const fields = new Set<VerifiedField>([
     ...det.map((d) => d.field),
@@ -319,8 +403,12 @@ export function mergeFindings(
           ? passages.find((p) => quoteAppearsIn(l.quote, p.chunk.text))
           : undefined;
     const lValid = Boolean(
-      l?.quote && lPassage && monographChunks.some((c) => c.id === lPassage.chunk.id),
+      l?.quote &&
+      isDecisiveQuote(l.quote) &&
+      lPassage &&
+      monographChunks.some((c) => c.id === lPassage.chunk.id),
     );
+    const decisive = (v: FieldVerdict) => v === 'consistent' || v === 'conflict';
 
     const fromDet = (decidedBy: FindingOut['decidedBy'], note = ''): FindingOut => ({
       field,
@@ -333,11 +421,20 @@ export function mergeFindings(
       chunkId: dCite!.chunkId,
       quote: dCite!.quote,
       quoteValid: dCite!.valid,
+      reason: decisive(d!.verdict) ? null : (d!.reason ?? 'insufficient_evidence'),
     });
+    // The model's "not addressed": the prescription is silent, or the passages set no rule.
+    const llmGapReason = (): FindingReason =>
+      (l?.prescribed ?? d?.prescribed) ? 'not_constrained' : 'not_stated';
     const fromLlm = (
       verdict: FieldVerdict,
       confidence: FindingOut['confidence'],
       note = '',
+      reason: FindingReason | null = decisive(verdict)
+        ? null
+        : verdict === 'unknown'
+          ? 'unverified'
+          : llmGapReason(),
     ): FindingOut => ({
       field,
       verdict,
@@ -349,6 +446,7 @@ export function mergeFindings(
       chunkId: lValid ? lPassage!.chunk.id : null,
       quote: l!.quote,
       quoteValid: lValid,
+      reason,
     });
 
     const dSolid = Boolean(
@@ -375,6 +473,23 @@ export function mergeFindings(
           'not_addressed',
           'low',
           ' — not counted as a conflict: the cited passage lists indications but does not exclude or contraindicate this use.',
+          'not_constrained',
+        ),
+      );
+    } else if (
+      l &&
+      l.verdict === 'conflict' &&
+      lValid &&
+      field === 'indication' &&
+      !exclusionApplies(l.quote ?? '', context.primaryText)
+    ) {
+      // A restriction exists, but the discharge document doesn't show it applies to this patient.
+      out.push(
+        fromLlm(
+          'not_addressed',
+          'low',
+          ' — not counted as a conflict: the discharge document does not show that this restriction applies to the patient. Needs review.',
+          'insufficient_evidence',
         ),
       );
     } else if (l && l.verdict === 'conflict' && lValid) {
@@ -396,6 +511,9 @@ export function mergeFindings(
       out.push(fromDet(l?.verdict === d.verdict ? 'both' : 'deterministic'));
     } else if (l && l.verdict === 'consistent' && lValid) {
       out.push(fromLlm('consistent', 'medium'));
+    } else if (d && field === 'indication' && l?.verdict === 'not_addressed') {
+      // Indication is semantic: the model's "no rule on this" outranks the placeholder check.
+      out.push(fromLlm('not_addressed', 'medium'));
     } else if (d) {
       out.push(fromDet('deterministic'));
     } else if (l) {

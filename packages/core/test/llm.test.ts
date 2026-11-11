@@ -59,6 +59,25 @@ describe('summary faithfulness guard', () => {
     expect(w.join(' ')).toMatch(/"20"/);
     expect(w.join(' ')).toMatch(/Lisinopril/);
   });
+  it('flags a dose attributed to the wrong drug even though the number exists', () => {
+    const src = 'Velantine 10 mg once daily. Quintaxin 20 mg before breakfast.';
+    expect(summaryWarnings('He takes Velantine 20 mg daily.', src).join(' ')).toMatch(
+      /"20 mg" is not attributed to velantine/,
+    );
+    expect(summaryWarnings('He takes Quintaxin 20 mg daily.', src)).toEqual([]);
+  });
+  it('flags an added or dropped negation against closely matching source sentences', () => {
+    const src = 'The ECG showed atrial fibrillation with rapid ventricular response.';
+    expect(
+      summaryWarnings(
+        'The ECG did not show atrial fibrillation with rapid ventricular response.',
+        src,
+      ).join(' '),
+    ).toMatch(/added negation/);
+    expect(summaryWarnings('The ECG showed atrial fibrillation with rapid response.', src)).toEqual(
+      [],
+    );
+  });
 });
 
 describe('OpenAI error classification', () => {

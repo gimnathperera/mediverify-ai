@@ -1,6 +1,6 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
 import * as React from 'react';
 
 import { cn } from '../../lib/utils';
@@ -153,9 +153,62 @@ export function Alert({
   );
 }
 
-export function Skeleton({ className }: { className?: string }) {
-  return <div aria-hidden className={cn('animate-pulse rounded-md bg-slate-200', className)} />;
+/** Shimmering placeholder block. Decorative: wrap groups in `<LoadingRegion>` for screen readers. */
+export function Skeleton({
+  className,
+  style,
+}: {
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return <div aria-hidden className={cn('skeleton rounded-md', className)} style={style} />;
 }
+
+/** A section that is still loading: announces `label` once and hides the placeholder shapes. */
+export function LoadingRegion({
+  label,
+  className,
+  children,
+  announce = true,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+  /** false when nested inside another LoadingRegion (one announcement per loading view). */
+  announce?: boolean;
+}) {
+  if (!announce) return <div className={className}>{children}</div>;
+  return (
+    <div role="status" aria-busy="true" aria-label={label} className={className}>
+      <span className="sr-only">{label}</span>
+      {children}
+    </div>
+  );
+}
+
+/** Native select with an aligned chevron and consistent padding (the browser arrow hugs the edge). */
+export const Select = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement>
+>(({ className, children, ...props }, ref) => (
+  <div className="relative">
+    <select
+      ref={ref}
+      className={cn(
+        'h-10 w-full appearance-none truncate rounded-md border border-slate-300 bg-white pl-3 pr-10 text-sm text-slate-900 transition-colors hover:border-slate-400 focus-visible:border-brand-600 disabled:opacity-60',
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </select>
+    <ChevronDown
+      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+      aria-hidden
+    />
+  </div>
+));
+Select.displayName = 'Select';
 
 export function Spinner({ label = 'Loading' }: { label?: string }) {
   return (

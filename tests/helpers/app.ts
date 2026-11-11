@@ -22,6 +22,8 @@ export async function startApp(pool: pg.Pool, env: Record<string, string> = {}):
       LLM_PROVIDER: 'fixture',
       ALLOWED_ORIGINS: 'http://localhost:8088',
       DUPLICATE_WINDOW_SECONDS: '300',
+      // The test DB keeps jobs across runs; the app-wide cap is exercised in limits.test.ts.
+      GLOBAL_DAILY_JOB_LIMIT: '0',
       ...env,
     }),
     logger: pino({ level: 'silent' }),

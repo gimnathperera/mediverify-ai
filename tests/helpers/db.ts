@@ -7,6 +7,7 @@ import {
   runClaimedJob,
   type LlmProvider,
   type PipelineDeps,
+  type RunnerOptions,
 } from '@mediverify/core';
 import {
   createPool,
@@ -78,6 +79,7 @@ export async function runJob(
   jobId: string,
   d: PipelineDeps,
   workerId = 'test-worker',
+  overrides: Partial<RunnerOptions> = {},
 ) {
   const { rows } = await pool.query<{
     id: string;
@@ -95,7 +97,13 @@ export async function runJob(
   return runClaimedJob(
     d,
     job,
-    { workerId, leaseSeconds: 300, stageTimeoutMs: 120_000, retryBaseDelaySeconds: 0 },
+    {
+      workerId,
+      leaseSeconds: 300,
+      stageTimeoutMs: 120_000,
+      retryBaseDelaySeconds: 0,
+      ...overrides,
+    },
     silentLog,
   );
 }

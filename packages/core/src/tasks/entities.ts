@@ -4,6 +4,7 @@ import { entitiesOutput, type ExtractedMedication } from '../llm/schemas.js';
 import type { LlmProvider } from '../llm/types.js';
 import type { ParsedDocument, TableRow } from '../parsing/types.js';
 import {
+  isAmbiguousDose,
   parseDose,
   parseDuration,
   parseFrequency,
@@ -12,7 +13,7 @@ import {
   FREQUENCY_LABEL,
   TIMING_LABEL,
 } from '../rules/normalize.js';
-import { normalizeDrugName, quoteAppearsIn } from '../text.js';
+import { drugIdentityKey, quoteAppearsIn } from '../text.js';
 
 import { locateQuote } from './critical-points.js';
 
@@ -99,24 +100,39 @@ export function reconcileMedications(doc: ParsedDocument, extracted: ExtractedMe
   const table = findMedicationTable(doc);
   const rowByName = new Map<string, TableRow>();
   if (table)
-    for (const r of table.rows) rowByName.set(normalizeDrugName(cell(r, table.col.name) ?? ''), r);
+    for (const r of table.rows) rowByName.set(drugIdentityKey(cell(r, table.col.name) ?? ''), r);
   const used = new Set<string>();
   const records: MedicationRecord[] = [];
 
   for (const m of extracted) {
-    const key = normalizeDrugName(m.drug_name);
-    if (!key || used.has(key)) continue;
+    const key = drugIdentityKey(m.drug_name);
+    if (!key) continue;
+    if (used.has(key)) {
+      // A second entry for the same drug (split dose, taper): keep it visible, never drop silently.
+      records
+        .find((r) => r.drugNameNormalized === key)
+        ?.ambiguities.push(
+          `Listed more than once (${m.dose_raw ?? 'dose not stated'}${m.frequency_raw ? `, ${m.frequency_raw}` : ''}); only the first entry is verified.`,
+        );
+      continue;
+    }
     const row = rowByName.get(key);
     const rec = buildRecord(m, key);
+    // "New start" decides titration checks, so it needs a quote that validates in the document.
+    if (rec.isNewStart !== null && !locateQuote(doc, m.new_start_evidence ?? '', null).valid) {
+      rec.isNewStart = null;
+      rec.ambiguities.push('Whether this is a new start is not supported by a document quote.');
+    }
     if (row && table) {
       applyTableRow(rec, row, table);
     } else {
       const loc = locateQuote(doc, m.source_quote, m.source_page);
       rec.sourceQuoteValid = loc.valid;
       rec.sourcePage = loc.page;
-      if (table && !loc.valid) {
+      // Hallucination control: a medication must be traceable to the document text.
+      if (!loc.valid) {
         notes.push(
-          `Dropped "${m.drug_name}": not in the medication table and quote not found in document`,
+          `Dropped "${m.drug_name}": ${table ? 'not in the medication table and ' : ''}quote not found in document`,
         );
         continue;
       }
@@ -158,10 +174,23 @@ export function reconcileMedications(doc: ParsedDocument, extracted: ExtractedMe
 }
 
 function buildRecord(m: ExtractedMedication, key: string): MedicationRecord {
-  const dose =
+  const ambiguities = [...m.ambiguities];
+  // The model's numeric dose must agree with the dose text it was read from; ranges and combination
+  // strengths are never collapsed to one value.
+  const parsed = parseDose(m.dose_raw);
+  let dose: { value: number; unit: string } | null =
     m.dose_value !== null && m.dose_unit
       ? { value: m.dose_value, unit: m.dose_unit.toLowerCase() }
-      : parseDose(m.dose_raw);
+      : parsed;
+  if (isAmbiguousDose(m.dose_raw)) {
+    dose = null;
+    ambiguities.push(`Dose "${m.dose_raw}" is a range or combination; not reduced to one value.`);
+  } else if (dose && parsed && (parsed.value !== dose.value || parsed.unit !== dose.unit)) {
+    dose = parsed;
+    ambiguities.push(
+      `Extracted dose disagreed with the dose text "${m.dose_raw}"; the text was used.`,
+    );
+  }
   const freq = parseFrequency(m.frequency_raw);
   const timing = parseTiming(m.timing_raw) ?? parseTiming(m.frequency_raw);
   const duration = parseDuration(m.duration_raw);
@@ -185,7 +214,7 @@ function buildRecord(m: ExtractedMedication, key: string): MedicationRecord {
     sourcePage: m.source_page,
     sourceQuote: m.source_quote || null,
     sourceQuoteValid: false,
-    ambiguities: [...m.ambiguities],
+    ambiguities,
   };
 }
 

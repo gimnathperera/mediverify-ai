@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+import {
+  DOCUMENT_PAGE_SIZE,
+  DOCUMENT_STATUS_FILTERS,
+  FIELD_VERDICTS,
+  FINDING_REASONS,
+  VERIFICATION_STATUSES,
+  VERIFIED_FIELDS,
+} from './domain.js';
 import { JOB_STATUSES, STAGES, STAGE_STATUSES } from './stages.js';
 
 // ---------- auth ----------
@@ -51,6 +59,15 @@ export const stageSchema = z.object({
 });
 export type StageDto = z.infer<typeof stageSchema>;
 
+/** Model usage summed over a job's stages. Cost is null unless prices are configured. */
+export const llmUsageSchema = z.object({
+  calls: z.number().int(),
+  promptTokens: z.number().int(),
+  completionTokens: z.number().int(),
+  costUsd: z.number().nullable(),
+});
+export type LlmUsageDto = z.infer<typeof llmUsageSchema>;
+
 export const jobSchema = z.object({
   id: z.uuid(),
   documentId: z.uuid(),
@@ -66,6 +83,7 @@ export const jobSchema = z.object({
   stages: z.array(stageSchema),
   lastEventId: z.string(),
   llmProvider: z.string().nullable(),
+  llmUsage: llmUsageSchema,
 });
 export type JobDto = z.infer<typeof jobSchema>;
 
@@ -98,32 +116,27 @@ export const documentSchema = z.object({
 });
 export type DocumentDto = z.infer<typeof documentSchema>;
 
+export const documentListQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(DOCUMENT_PAGE_SIZE),
+  cursor: z.string().max(200).optional(),
+  status: z.enum(DOCUMENT_STATUS_FILTERS).default('all'),
+  q: z.string().trim().max(200).optional(),
+});
+export type DocumentListQuery = z.infer<typeof documentListQuerySchema>;
+
+export const documentPageSchema = z.object({
+  items: z.array(documentSchema),
+  /** Opaque keyset cursor for the next page; null on the last page. */
+  nextCursor: z.string().nullable(),
+  /** Per-status totals for the current search (drives the filter badges). */
+  counts: z.record(z.enum(DOCUMENT_STATUS_FILTERS), z.number().int()),
+});
+export type DocumentPageDto = z.infer<typeof documentPageSchema>;
+
 // ---------- results ----------
-export const VERIFICATION_STATUSES = [
-  'supported',
-  'contradicted',
-  'unsupported',
-  'incomplete',
-] as const;
-export type VerificationStatus = (typeof VERIFICATION_STATUSES)[number];
-
-export const VERIFIED_FIELDS = [
-  'identity',
-  'dose',
-  'unit',
-  'route',
-  'frequency',
-  'timing',
-  'duration',
-  'indication',
-] as const;
-export type VerifiedField = (typeof VERIFIED_FIELDS)[number];
-
-export const FIELD_VERDICTS = ['consistent', 'conflict', 'not_addressed', 'unknown'] as const;
-export type FieldVerdict = (typeof FIELD_VERDICTS)[number];
-
 export const citationSchema = z.object({
-  chunkId: z.uuid(),
+  /** Null when the passage is no longer in the current index (shown from the stored snapshot). */
+  chunkId: z.uuid().nullable(),
   referenceId: z.uuid(),
   monographName: z.string().nullable(),
   section: z.string().nullable(),
@@ -143,6 +156,8 @@ export const findingSchema = z.object({
   explanation: z.string(),
   decidedBy: z.enum(['deterministic', 'llm', 'both']),
   confidence: z.enum(['high', 'medium', 'low']),
+  /** Why a non-decisive verdict was given (see FINDING_REASONS); null for consistent/conflict. */
+  reason: z.enum(FINDING_REASONS).nullable(),
   citation: citationSchema.nullable(),
 });
 export type FindingDto = z.infer<typeof findingSchema>;

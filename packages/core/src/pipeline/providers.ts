@@ -1,5 +1,7 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+import { envNumber, resolveLlmProvider } from '@mediverify/shared';
 import type { Logger } from 'pino';
 
 import { LocalEmbeddingProvider } from '../embeddings/local.js';
@@ -22,9 +24,13 @@ export class UnconfiguredProvider implements LlmProvider {
 }
 
 export function createLlmProvider(env: NodeJS.ProcessEnv, logger?: Logger): LlmProvider {
-  const provider = (env.LLM_PROVIDER ?? 'openai').toLowerCase();
+  const provider = resolveLlmProvider(env);
   if (provider === 'fixture') {
-    return new FixtureProvider(env.LLM_FIXTURE_DIR ?? path.resolve('fixtures/llm'));
+    // Default to the repo's fixtures dir regardless of the process cwd (e.g. `pnpm dev:worker`
+    // runs in apps/worker). src/ and dist/ both sit four levels below the repo root.
+    return new FixtureProvider(
+      env.LLM_FIXTURE_DIR ?? fileURLToPath(new URL('../../../../fixtures/llm', import.meta.url)),
+    );
   }
   const model = env.OPENAI_MODEL ?? 'gpt-5.4-mini';
   if (!env.OPENAI_API_KEY) return new UnconfiguredProvider(model);
@@ -33,12 +39,13 @@ export function createLlmProvider(env: NodeJS.ProcessEnv, logger?: Logger): LlmP
     apiKey: env.OPENAI_API_KEY,
     model,
     baseURL: env.OPENAI_BASE_URL || undefined,
-    timeoutMs: Number(env.LLM_TIMEOUT_MS ?? 90_000),
-    maxRetries: Number(env.LLM_MAX_RETRIES ?? 3),
+    timeoutMs: envNumber(env, 'LLM_TIMEOUT_MS', 90_000),
+    maxRetries: envNumber(env, 'LLM_MAX_RETRIES', 3),
     reasoningEffort: effort || undefined,
     temperature: env.OPENAI_TEMPERATURE ? Number(env.OPENAI_TEMPERATURE) : undefined,
     recordDir: env.LLM_RECORD_DIR || undefined,
     logger,
+    maxPromptTokens: envNumber(env, 'LLM_MAX_PROMPT_TOKENS', 60_000),
   });
 }
 

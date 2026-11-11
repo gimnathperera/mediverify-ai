@@ -1,5 +1,10 @@
-import type { DocumentDto, UploadResponse } from '@mediverify/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  DocumentDto,
+  DocumentPageDto,
+  DocumentStatusFilter,
+  UploadResponse,
+} from '@mediverify/shared/client';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api, ApiRequestError } from './api';
 
@@ -32,7 +37,36 @@ export function useMe() {
 export const useConfig = () =>
   useQuery({ queryKey: qk.config, queryFn: api.config, staleTime: Infinity });
 export const useReferences = () => useQuery({ queryKey: qk.references, queryFn: api.references });
-export const useDocuments = () => useQuery({ queryKey: qk.documents, queryFn: api.documents });
+const PROCESSING = new Set(['queued', 'running']);
+const isProcessing = (d: DocumentDto) => !d.latestJob || PROCESSING.has(d.latestJob.status);
+
+/**
+ * The document list, paged and filtered on the server (keyset cursor, 25 per page). Keyed under
+ * `qk.documents` so existing invalidations (upload, retry, job end) refresh every filter view.
+ * While a listed job is still processing, the pages refresh every few seconds.
+ */
+export function useDocumentPages(filter: { status: DocumentStatusFilter; q: string }) {
+  return useInfiniteQuery({
+    queryKey: [...qk.documents, filter] as const,
+    queryFn: ({ pageParam }) => api.documents({ ...filter, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last: DocumentPageDto) => last.nextCursor ?? undefined,
+    placeholderData: (prev) => prev,
+    refetchInterval: (query) =>
+      query.state.data?.pages.some((p) => p.items.some(isProcessing)) ? 3000 : false,
+  });
+}
+
+export function useDeleteDocument() {
+  const qc = useQueryClient();
+  return useMutation<void, ApiRequestError, string>({
+    mutationFn: (id) => api.deleteDocument(id),
+    onSuccess: async (_r, id) => {
+      qc.removeQueries({ queryKey: qk.document(id) });
+      await qc.invalidateQueries({ queryKey: qk.documents });
+    },
+  });
+}
 export const useDocument = (id: string) =>
   useQuery({ queryKey: qk.document(id), queryFn: () => api.document(id) });
 export const useJob = (id: string | undefined) =>
@@ -76,13 +110,4 @@ export function useRetryJob() {
       await qc.invalidateQueries({ queryKey: qk.documents });
     },
   });
-}
-
-export function upsertDocumentInList(list: DocumentDto[] | undefined, doc: DocumentDto) {
-  if (!list) return [doc];
-  const i = list.findIndex((d) => d.id === doc.id);
-  if (i < 0) return [doc, ...list];
-  const copy = [...list];
-  copy[i] = doc;
-  return copy;
 }

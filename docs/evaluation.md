@@ -64,6 +64,27 @@ Every retrieved passage belonged to the matched monograph (no cross-monograph le
 default: K = 3 would miss Pravoxil's "not in the morning" note. Deterministic checks also add the evidence field
 they rely on to the LLM's passages, so a ranking miss can't hide a constraint.
 
+#### Retrieval ablation (2026-11-11) — and why the weighting was replaced
+
+The table above is the original `0.7·cosine + 0.3·ts_rank` mix with one long query. Checked against the stored
+queries, its full-text half did not work as intended: `websearch_to_tsquery` ANDs all ~25 query terms, so **no field
+chunk matched** (0 of 18 checked), and the partial `ts_rank` scores, multiplied by 10 and capped at 1, gave five of
+Etrazolam's nine fields the same lexical score while ranking Pravoxil's Contraindications above the Prescribing notes
+that carry its real timing rule. It has been replaced by one query per prescribing aspect (dose, schedule, duration,
+indication/contraindications), each ranked by cosine and by an OR-of-lexemes full-text rank, fused with Reciprocal
+Rank Fusion (k = 60); the Contraindications field is always included. `pnpm eval` now reports all three strategies on
+the same medications:
+
+| Strategy (same queries, same chunks)      | mean Recall@3 | mean Recall@6 |
+| ----------------------------------------- | ------------- | ------------- |
+| Vector only                               | 0.933         | 1.000         |
+| Weighted hybrid (previous)                | 0.833         | 1.000         |
+| **RRF over per-aspect queries (current)** | **0.933**     | **1.000**     |
+
+On this ten-field-per-monograph digest the lexical signal adds nothing beyond vectors (vector-only ties RRF); what
+RRF fixes is that the lexical half no longer _hurts_ the ranking, and it stays meaningful for longer monographs where
+exact terms ("contraindicated", "bedtime") matter. End-to-end results were unchanged by the switch.
+
 ### 4. End-to-end on the golden document (fixture LLM)
 
 | Metric                                                                                           | Result                                                                                                           |
@@ -95,6 +116,25 @@ gate and retrieval) do not involve the LLM and matched the fixture run exactly.
 | Critical-point quotes validated against the primary document                              | **100%** (11 points)                                                    |
 | Psychiatry follow-up discrepancy preserved (critical point with both quotes / summary)    | **yes / yes**                                                           |
 | Findings citing distractor monographs                                                     | **0**                                                                   |
+
+### Re-run after the hardening sprint (2026-11-11)
+
+One more live run on the final code (stricter status rules with per-field reasons, RRF retrieval, indication
+applicability, validated new-start evidence, the extended summary guard). Report: [`evaluation-live.json`](evaluation-live.json).
+
+| Check                                             | Result                                                                                           |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Statuses / conflict fields                        | **6 / 6**, precision and recall **100% / 100%**                                                  |
+| Extraction (all fields), citations, quotes        | **100%** each                                                                                    |
+| Discrepancy preserved (critical points / summary) | **yes / yes**                                                                                    |
+| Summary guard warnings                            | **0**                                                                                            |
+| "New start" quotes validated                      | **6 / 6** (so the Cordizem-XR titration conflict is evidenced, not inferred)                     |
+| Non-decisive findings                             | all `not_constrained` (the monograph sets no rule) — none `not_stated` / insufficient / rejected |
+| Model usage recorded on the job                   | **8 calls, 18,318 tokens** (11,797 prompt + 6,521 completion); cost not computed (no prices set) |
+| Wall time                                         | 27.6 s                                                                                           |
+
+Quintaxin, which one earlier run flagged as an indication conflict, stays Supported by design: the model judged the
+indication "not addressed", which the status rules read as "no rule in the formulary" rather than a conflict.
 
 ### What the live runs found, and what changed
 

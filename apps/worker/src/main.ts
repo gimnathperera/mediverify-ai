@@ -11,6 +11,8 @@ import {
   createPool,
   jobsRepo,
   JOB_QUEUE_CHANNEL,
+  listenWithReconnect,
+  maintenanceRepo,
   referencesRepo,
   withTransaction,
 } from '@mediverify/db';
@@ -25,10 +27,11 @@ const log = pino({
 
 async function main() {
   // Each job slot can run up to `verifyConcurrency` verification queries at once, plus heartbeat,
-  // claim, reaper and LISTEN connections.
+  // claim and reaper connections.
+  // (The LISTEN connection is separate from this pool.)
   const pool = createPool(
     config.databaseUrl,
-    config.concurrency * (config.verifyConcurrency + 1) + 4,
+    config.concurrency * (config.verifyConcurrency + 1) + 3,
   );
   const deps: PipelineDeps = {
     pool,
@@ -39,6 +42,8 @@ async function main() {
       retrievalMinScore: config.retrievalMinScore,
       verifyConcurrency: config.verifyConcurrency,
       sofficeBin: config.sofficeBin,
+      maxDocumentPages: config.maxDocumentPages,
+      maxDocumentChars: config.maxDocumentChars,
     },
   };
   log.info(
@@ -58,18 +63,20 @@ async function main() {
     );
 
   let stopping = false;
-  let wake: (() => void) | null = null;
+  // Every sleeping job slot registers a waker; a NOTIFY or shutdown wakes all of them.
+  const sleepers = new Set<() => void>();
+  const wakeAll = () => {
+    for (const w of [...sleepers]) w();
+  };
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
-      const t = setTimeout(() => {
-        wake = null;
-        resolve();
-      }, ms);
-      wake = () => {
+      const done = () => {
         clearTimeout(t);
-        wake = null;
+        sleepers.delete(done);
         resolve();
       };
+      const t = setTimeout(done, ms);
+      sleepers.add(done);
     });
 
   // Load the embedding model now (not on the first job) so stage timings reflect real work.
@@ -102,10 +109,14 @@ async function main() {
     }
   }
 
-  // LISTEN for new jobs (instant pickup); polling remains as a fallback.
-  const listener = await pool.connect();
-  await listener.query(`LISTEN ${JOB_QUEUE_CHANNEL}`);
-  listener.on('notification', () => wake?.());
+  // LISTEN for new jobs (instant pickup); reconnects on its own, and polling remains as a fallback.
+  const listener = await listenWithReconnect({
+    connectionString: config.databaseUrl,
+    channel: JOB_QUEUE_CHANNEL,
+    onNotify: () => wakeAll(),
+    log,
+    eventPrefix: 'queue',
+  });
 
   const reaper = setInterval(() => {
     withTransaction(pool, (c) => jobsRepo.reapExpiredLeases(c, config.retryBaseDelaySeconds))
@@ -118,6 +129,24 @@ async function main() {
       );
   }, config.reaperSeconds * 1000);
 
+  // Data lifecycle (sessions, old progress events, optional document retention); same pattern as
+  // the reaper. Safe with several workers: the deletes are idempotent.
+  const maintain = () =>
+    maintenanceRepo
+      .purgeExpiredData(pool, {
+        eventRetentionDays: config.eventRetentionDays,
+        documentRetentionDays: config.documentRetentionDays,
+      })
+      .then((r) => {
+        if (r.sessions || r.events || r.documents)
+          log.info({ event: 'maintenance.purged', ...r }, 'expired data purged');
+      })
+      .catch((err: Error) =>
+        log.error({ event: 'maintenance.error', error: err.message }, 'maintenance failed'),
+      );
+  const maintenance = setInterval(() => void maintain(), config.maintenanceSeconds * 1000);
+  void maintain();
+
   const alive = setInterval(() => {
     writeFile(config.heartbeatFile, String(Date.now())).catch(() => undefined);
   }, 5000);
@@ -127,7 +156,7 @@ async function main() {
     if (stopping) return;
     stopping = true;
     log.info({ event: 'worker.stopping', signal }, 'shutdown requested; finishing current stage');
-    wake?.();
+    wakeAll();
   };
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
@@ -172,6 +201,7 @@ async function main() {
             stageTimeoutMs: config.stageTimeoutMs,
             retryBaseDelaySeconds: config.retryBaseDelaySeconds,
             shouldStop: () => stopping,
+            llmPricing: config.llmPricing,
           },
           log,
         );
@@ -189,8 +219,9 @@ async function main() {
 
   await Promise.all(Array.from({ length: config.concurrency }, (_, i) => loop(i)));
   clearInterval(reaper);
+  clearInterval(maintenance);
   clearInterval(alive);
-  listener.release();
+  await listener.close();
   await pool.end();
   log.info({ event: 'worker.stopped' }, 'worker stopped');
 }

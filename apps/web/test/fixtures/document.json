@@ -1,0 +1,19 @@
+{
+  "id": "e63bd907-d900-45f1-87a1-01bbdf3f6fdc",
+  "filename": "primary_document_medical.pdf",
+  "mimeType": "application/pdf",
+  "sizeBytes": 95788,
+  "pageCount": 5,
+  "createdAt": "2026-11-11T02:42:40.169Z",
+  "reference": {
+    "id": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
+    "title": "Meridian Bay Medical Center — Institutional Formulary Digest",
+    "versionLabel": "8.2"
+  },
+  "latestJob": {
+    "id": "2f171f8c-35a1-432c-b78b-823801389089",
+    "status": "completed",
+    "currentStage": "done",
+    "errorMessage": null
+  }
+}

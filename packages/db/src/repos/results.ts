@@ -234,6 +234,26 @@ export interface FindingInput {
   chunkId: string | null;
   quote: string | null;
   quoteValid: boolean;
+  reason?: FindingDto['reason'];
+}
+
+/**
+ * Snapshot of a cited chunk taken at write time, so citations survive a reference re-index
+ * (chunk rows are replaced then and `chunk_id` becomes NULL). `$param` is the chunk id parameter.
+ */
+const evidenceSnapshotSql = (param: string) =>
+  `(SELECT jsonb_build_object('referenceId', c.reference_document_id, 'monographName', m.name,
+            'section', c.section_title, 'fieldLabel', c.field_label, 'page', c.page_start, 'text', c.text)
+      FROM reference_chunks c LEFT JOIN reference_monographs m ON m.id = c.monograph_id
+     WHERE c.id = ${param})`;
+
+interface EvidenceSnapshot {
+  referenceId: string;
+  monographName: string | null;
+  section: string | null;
+  fieldLabel: string | null;
+  page: number | null;
+  text: string;
 }
 
 export interface VerificationInput {
@@ -256,8 +276,8 @@ export async function replaceVerifications(
   for (const r of results) {
     const { rows } = await q.query<{ id: string }>(
       `INSERT INTO verification_results(job_id, medication_entity_id, status, monograph_id, summary,
-              similar_names, coverage_chunk_id, retrieval)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+              similar_names, coverage_chunk_id, retrieval, coverage_evidence)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::uuid,$8,${evidenceSnapshotSql('$7::uuid')}) RETURNING id`,
       [
         jobId,
         r.medicationId,
@@ -274,8 +294,9 @@ export async function replaceVerifications(
     for (const f of r.findings) {
       await q.query(
         `INSERT INTO verification_findings(verification_result_id, field, verdict, prescribed_value,
-                reference_constraint, explanation, decided_by, confidence, chunk_id, quote, quote_valid, ordinal)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+                reference_constraint, explanation, decided_by, confidence, chunk_id, quote, quote_valid,
+                ordinal, reason, evidence)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::uuid,$10,$11,$12,$13,${evidenceSnapshotSql('$9::uuid')})`,
         [
           resultId,
           f.field,
@@ -289,6 +310,7 @@ export async function replaceVerifications(
           f.quote,
           f.quoteValid,
           ordinal++,
+          f.reason ?? null,
         ],
       );
     }
@@ -305,8 +327,26 @@ interface CitationRow {
   c_page: number | null;
 }
 
-function toCitation(r: CitationRow, quote: string | null, quoteValid: boolean): CitationDto | null {
-  if (!r.chunk_id || !r.reference_document_id) return null;
+function toCitation(
+  r: CitationRow,
+  quote: string | null,
+  quoteValid: boolean,
+  snapshot: EvidenceSnapshot | null,
+): CitationDto | null {
+  if (!r.chunk_id || !r.reference_document_id) {
+    // Passage no longer in the current index: fall back to the snapshot taken when it was cited.
+    if (!snapshot) return null;
+    return {
+      chunkId: null,
+      referenceId: snapshot.referenceId,
+      monographName: snapshot.monographName,
+      section: snapshot.section,
+      fieldLabel: snapshot.fieldLabel,
+      page: snapshot.page,
+      quote: quote ?? snapshot.text,
+      quoteValid,
+    };
+  }
   return {
     chunkId: r.chunk_id,
     referenceId: r.reference_document_id,
@@ -361,9 +401,11 @@ export async function getResultsForOwner(
       similar_names: string[];
       monograph_name: string | null;
       cov_quote: string | null;
+      coverage_evidence: EvidenceSnapshot | null;
     } & CitationRow
   >(
     `SELECT v.id, v.medication_entity_id, v.status, v.summary, v.similar_names, m.name AS monograph_name,
+            v.coverage_evidence,
             c.id AS chunk_id, c.reference_document_id, NULL::text AS monograph_name_c,
             c.section_title AS c_section, c.field_label AS c_field, c.page_start AS c_page, c.text AS cov_quote
        FROM verification_results v
@@ -385,10 +427,12 @@ export async function getResultsForOwner(
       confidence: FindingDto['confidence'];
       quote: string | null;
       quote_valid: boolean;
+      reason: FindingDto['reason'];
+      evidence: EvidenceSnapshot | null;
     } & CitationRow
   >(
     `SELECT f.id, f.verification_result_id, f.field, f.verdict, f.prescribed_value, f.reference_constraint,
-            f.explanation, f.decided_by, f.confidence, f.quote, f.quote_valid,
+            f.explanation, f.decided_by, f.confidence, f.quote, f.quote_valid, f.reason, f.evidence,
             c.id AS chunk_id, c.reference_document_id, m.name AS monograph_name,
             c.section_title AS c_section, c.field_label AS c_field, c.page_start AS c_page
        FROM verification_findings f
@@ -411,8 +455,9 @@ export async function getResultsForOwner(
       similarNames: v.similar_names,
       coverageCitation: toCitation(
         { ...v, monograph_name: null },
-        v.cov_quote,
-        v.cov_quote !== null,
+        v.cov_quote ?? v.coverage_evidence?.text ?? null,
+        v.cov_quote !== null || Boolean(v.coverage_evidence),
+        v.coverage_evidence,
       ),
       findings: findings.rows
         .filter((f) => f.verification_result_id === v.id)
@@ -425,7 +470,8 @@ export async function getResultsForOwner(
           explanation: f.explanation,
           decidedBy: f.decided_by,
           confidence: f.confidence,
-          citation: toCitation(f, f.quote, f.quote_valid),
+          reason: f.reason,
+          citation: toCitation(f, f.quote, f.quote_valid, f.evidence),
         })),
     }))
     .sort(

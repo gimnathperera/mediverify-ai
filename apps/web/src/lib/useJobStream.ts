@@ -3,7 +3,7 @@ import {
   type JobDto,
   type JobEventDto,
   type StageDto,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 
@@ -86,14 +86,24 @@ export function applyEvent(job: JobDto, e: JobEventDto): JobDto {
   };
 }
 
+/** Snapshot polling interval while the live stream is not connected (fallback). */
+export const POLL_FALLBACK_MS = 5000;
+
 /**
  * Live job progress over SSE. Starts from the persisted snapshot's lastEventId, so a page refresh
  * replays nothing twice and misses nothing; EventSource reconnects automatically with Last-Event-ID.
+ * If the browser gives up (e.g. a 502 while the API restarts), the hook reconnects with backoff,
+ * and while the stream is not live it polls the job snapshot so progress never freezes.
  */
 export function useJobStream(job: JobDto | undefined) {
   const qc = useQueryClient();
   const [state, setState] = useState<StreamState>('idle');
-  const [notes, setNotes] = useState<ProgressNote[]>([]);
+  // Notes are keyed by job, so a retried job never shows the previous job's log.
+  const [log, setLog] = useState<{ jobId: string | null; notes: ProgressNote[] }>({
+    jobId: null,
+    notes: [],
+  });
+  const [attempt, setAttempt] = useState(0);
   const startedFor = useRef<string | null>(null);
   const jobId = job?.id;
   const terminal = job ? isTerminalJobStatus(job.status) : false;
@@ -103,24 +113,31 @@ export function useJobStream(job: JobDto | undefined) {
     if (!jobId || terminal || startedFor.current === jobId) return;
     startedFor.current = jobId;
     setState('connecting');
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const es = new EventSource(
       `/api/jobs/${jobId}/events?lastEventId=${encodeURIComponent(fromId)}`,
       { withCredentials: true },
     );
     es.onopen = () => setState('live');
     es.onmessage = (msg) => {
-      const e = JSON.parse(msg.data as string) as JobEventDto;
+      let e: JobEventDto;
+      try {
+        e = JSON.parse(msg.data as string) as JobEventDto;
+      } catch {
+        return; // malformed message: skip it (the snapshot poll/replay will catch up)
+      }
       qc.setQueryData<JobDto>(qk.job(jobId), (prev) => (prev ? applyEvent(prev, e) : prev));
       if (e.type === 'stage.progress') {
-        setNotes((n) => [
-          ...n.slice(-49),
-          {
-            id: e.id,
-            stage: e.stage,
-            message: typeof e.payload.message === 'string' ? e.payload.message : '',
-            at: e.createdAt,
-          },
-        ]);
+        const note = {
+          id: e.id,
+          stage: e.stage,
+          message: typeof e.payload.message === 'string' ? e.payload.message : '',
+          at: e.createdAt,
+        };
+        setLog((l) => ({
+          jobId,
+          notes: [...(l.jobId === jobId ? l.notes : []).slice(-49), note],
+        }));
       }
     };
     es.addEventListener('end', () => {
@@ -132,17 +149,37 @@ export function useJobStream(job: JobDto | undefined) {
       void qc.invalidateQueries({ queryKey: qk.documents });
     });
     es.onerror = () => {
-      // CONNECTING → browser is retrying (Last-Event-ID sent automatically). CLOSED → gave up (e.g. 401/404).
-      setState(es.readyState === EventSource.CLOSED ? 'error' : 'reconnecting');
-      if (es.readyState === EventSource.CLOSED) startedFor.current = null;
+      // CONNECTING → the browser is retrying (Last-Event-ID sent automatically).
+      // CLOSED → it gave up (non-200 response): reconnect ourselves with capped backoff.
+      if (es.readyState !== EventSource.CLOSED) {
+        setState('reconnecting');
+        return;
+      }
+      setState('error');
+      startedFor.current = null;
+      retryTimer = setTimeout(
+        () => setAttempt((a) => a + 1),
+        Math.min(30_000, 1000 * 2 ** Math.min(attempt, 5)),
+      );
     };
     return () => {
+      clearTimeout(retryTimer);
       es.close();
       startedFor.current = null;
     };
-    // fromId intentionally read once per connection: reconnects use the browser's Last-Event-ID.
+    // fromId/attempt are read once per connection: reconnects resume from the latest snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId, terminal, qc]);
+  }, [jobId, terminal, qc, attempt]);
 
-  return { state, notes };
+  // Fallback: while not live, refresh the snapshot so stage progress keeps moving.
+  useEffect(() => {
+    if (!jobId || terminal || state === 'live') return;
+    const t = setInterval(
+      () => void qc.invalidateQueries({ queryKey: qk.job(jobId) }),
+      POLL_FALLBACK_MS,
+    );
+    return () => clearInterval(t);
+  }, [jobId, terminal, state, qc]);
+
+  return { state, notes: log.jobId === jobId ? log.notes : [] };
 }

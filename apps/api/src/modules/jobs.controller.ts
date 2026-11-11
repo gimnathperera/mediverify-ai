@@ -6,7 +6,7 @@ import type { Logger } from 'pino';
 
 import { ApiError } from '../common/api-error.js';
 import { CurrentUser, type AuthedRequest } from '../common/auth.js';
-import { assertJobQuota } from '../common/quota.js';
+import { assertJobQuota, jobLimits } from '../common/quota.js';
 import { uuidParam } from '../common/zod.js';
 import type { AppConfig } from '../config.js';
 import { APP_CONFIG, LOGGER, PG_POOL } from '../tokens.js';
@@ -44,7 +44,7 @@ export class JobsController {
   async retry(@Param('id') id: string, @CurrentUser() user: UserDto) {
     const jobId = uuidParam(id, 'Job');
     const out = await withTransaction(this.pool, async (c) => {
-      await assertJobQuota(c, user.id, this.config.dailyJobLimit);
+      await assertJobQuota(c, user.id, jobLimits(this.config));
       return jobsRepo.createRetryJob(c, jobId, user.id);
     });
     if (out.kind === 'not_found') throw ApiError.notFound('Job');
@@ -134,15 +134,40 @@ export class JobsController {
         busy = false;
       }
     };
+    // Register before any await: a client that leaves early must still release everything.
+    req.on('close', close);
     const heartbeat = setInterval(() => {
-      if (!closed) res.write(': ping\n\n');
+      if (closed) return;
+      res.write(': ping\n\n');
+      // A deleted job (and its document) emits no terminal event: end the stream instead of
+      // sending heartbeats forever.
+      jobsRepo
+        .getJobForOwner(this.pool, jobId, user.id)
+        .then((j) => {
+          if (j || closed) return;
+          res.write(`event: end\ndata: ${JSON.stringify({ status: 'deleted' })}\n\n`);
+          close();
+        })
+        .catch(() => undefined);
     }, HEARTBEAT_MS);
     // Subscribe BEFORE the initial replay so no event can slip between the two.
     let unsubscribe: (() => void) | null = null;
-    unsubscribe = await this.hub.subscribe(jobId, () => {
-      void flush();
-    });
-    req.on('close', close);
+    try {
+      unsubscribe = await this.hub.subscribe(jobId, () => {
+        void flush();
+      });
+    } catch (err) {
+      this.log.warn(
+        { event: 'sse.subscribe_failed', job_id: jobId, error: (err as Error).message },
+        'SSE subscribe failed',
+      );
+      close();
+      return;
+    }
+    if (closed) {
+      unsubscribe();
+      return;
+    }
     this.log.debug({ event: 'sse.open', job_id: jobId, from: cursor }, 'SSE stream opened');
     await flush();
   }

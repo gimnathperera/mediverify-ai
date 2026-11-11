@@ -23,7 +23,12 @@ export function isDocx(bytes: Uint8Array): boolean {
  */
 export async function convertDocxToPdf(
   bytes: Uint8Array,
-  opts: { binary?: string | undefined; timeoutMs?: number | undefined } = {},
+  opts: {
+    binary?: string | undefined;
+    timeoutMs?: number | undefined;
+    /** Kills LibreOffice when the stage is cancelled. */
+    signal?: AbortSignal | undefined;
+  } = {},
 ): Promise<Buffer> {
   const dir = await mkdtemp(path.join(tmpdir(), 'mv-docx-'));
   try {
@@ -41,7 +46,7 @@ export async function convertDocxToPdf(
         dir,
         input,
       ],
-      { timeout: opts.timeoutMs ?? 90_000 },
+      { timeout: opts.timeoutMs ?? 90_000, ...(opts.signal ? { signal: opts.signal } : {}) },
     );
     return await readFile(path.join(dir, 'input.pdf'));
   } finally {

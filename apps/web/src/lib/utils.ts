@@ -30,15 +30,14 @@ export function formatDuration(ms: number | null) {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
-/** Normalization mirroring the server's quote matcher (for client-side highlighting). */
-export function normalizeText(s: string) {
-  return s
-    .normalize('NFKC')
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/[‐-―−]/g, '-')
-    .replace(/[•|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+/** " · 9 model calls · 41,210 tokens · $0.0123" (cost only when the server has prices set). */
+export function formatUsage(
+  usage: { calls: number; promptTokens: number; completionTokens: number; costUsd: number | null },
+  provider: string | null,
+) {
+  if (!usage.calls) return '';
+  if (provider === 'fixture') return ` · ${usage.calls} fixture model calls (no tokens used)`;
+  const tokens = (usage.promptTokens + usage.completionTokens).toLocaleString('en-US');
+  const cost = usage.costUsd === null ? '' : ` · US$ ${usage.costUsd.toFixed(4)}`;
+  return ` · ${usage.calls} model calls · ${tokens} tokens${cost}`;
 }

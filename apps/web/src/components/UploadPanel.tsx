@@ -5,13 +5,13 @@ import {
   PDF_MIME,
   sniffDocumentType,
   type ReferenceDto,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 import { FileUp, Info } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 
 import { cn, formatBytes } from '../lib/utils';
 
-import { Alert, Button, Card, Label } from './ui/primitives';
+import { Alert, Button, Card, Label, LoadingRegion, Select, Skeleton } from './ui/primitives';
 
 export async function validateFile(file: File): Promise<string | null> {
   const ext = extensionOf(file.name);
@@ -42,6 +42,7 @@ export function UploadPanel({
 }) {
   const inputId = useId();
   const selectId = useId();
+  const errorId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +52,7 @@ export function UploadPanel({
 
   const handle = async (file: File | undefined) => {
     setError(null);
-    if (!file) return;
+    if (!file || busy) return; // one upload at a time (drops included)
     const problem = await validateFile(file);
     if (problem) {
       setError(problem);
@@ -68,31 +69,35 @@ export function UploadPanel({
   return (
     <Card className="p-5">
       <h2 className="font-semibold text-slate-900">Verify a discharge document</h2>
-      <p className="mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-600">
         Upload the primary document; it is verified against the selected institutional reference.
       </p>
 
       <div className="mt-4 space-y-1.5">
         <Label htmlFor={selectId}>Reference document</Label>
-        <select
-          id={selectId}
-          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:opacity-60"
-          value={refId}
-          onChange={(e) => setSelectedRef(e.target.value)}
-          disabled={referencesLoading || !references?.length}
-        >
-          {referencesLoading && <option>Loading references…</option>}
-          {!referencesLoading && !references?.length && (
-            <option>No reference documents available</option>
-          )}
-          {references?.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.title} — rev. {r.versionLabel}
-            </option>
-          ))}
-        </select>
+        {referencesLoading ? (
+          <LoadingRegion label="Loading reference documents">
+            <Skeleton className="h-10 w-full" />
+          </LoadingRegion>
+        ) : (
+          <Select
+            id={selectId}
+            value={refId}
+            onChange={(e) => setSelectedRef(e.target.value)}
+            disabled={referencesLoading || !references?.length}
+          >
+            {!referencesLoading && !references?.length && (
+              <option>No reference documents available</option>
+            )}
+            {references?.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.title} — rev. {r.versionLabel}
+              </option>
+            ))}
+          </Select>
+        )}
         {ref && (
-          <p className="flex items-center gap-1 text-xs text-slate-500">
+          <p className="flex items-center gap-1 text-xs text-slate-600">
             <Info className="h-3.5 w-3.5" aria-hidden />
             {ref.indexStatus === 'ready'
               ? `Indexed: ${ref.monographCount} monographs`
@@ -101,11 +106,19 @@ export function UploadPanel({
         )}
       </div>
 
+      {/* The whole zone accepts clicks and drops; the button is the keyboard entry point. */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div
         className={cn(
-          'mt-4 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-          drag ? 'border-brand-600 bg-brand-50' : 'border-slate-300 bg-slate-50',
+          'mt-4 flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors focus-within:border-brand-600 motion-reduce:transition-none',
+          drag
+            ? 'border-brand-600 bg-brand-50'
+            : 'border-slate-300 bg-slate-50 hover:border-slate-400',
+          (!refId || busy) && 'cursor-not-allowed opacity-70',
         )}
+        onClick={(e) => {
+          if (e.target === e.currentTarget && refId && !busy) inputRef.current?.click();
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDrag(true);
@@ -121,10 +134,15 @@ export function UploadPanel({
         <p className="text-sm text-slate-700">
           Drag &amp; drop a <strong>PDF</strong> or <strong>DOCX</strong> here
         </p>
-        <p className="text-xs text-slate-500">Max {formatBytes(MAX_UPLOAD_BYTES)}</p>
+        <p className="text-xs text-slate-600">
+          Max {formatBytes(MAX_UPLOAD_BYTES)} · processed in the background, so you can leave the
+          page
+        </p>
         <input
           ref={inputRef}
           id={inputId}
+          aria-label="Choose a PDF or DOCX file to verify"
+          tabIndex={-1}
           type="file"
           accept={`.pdf,.docx,${PDF_MIME},${DOCX_MIME}`}
           className="sr-only"
@@ -134,6 +152,7 @@ export function UploadPanel({
         <Button
           type="button"
           variant="outline"
+          aria-describedby={error ? errorId : undefined}
           onClick={() => inputRef.current?.click()}
           loading={busy}
           disabled={!refId}
@@ -142,9 +161,11 @@ export function UploadPanel({
         </Button>
       </div>
       {error && (
-        <Alert tone="danger" title="File rejected" className="mt-3">
-          {error}
-        </Alert>
+        <div id={errorId} className="mt-3">
+          <Alert tone="danger" title="File rejected">
+            {error}
+          </Alert>
+        </div>
       )}
     </Card>
   );

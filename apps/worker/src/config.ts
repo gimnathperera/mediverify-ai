@@ -1,12 +1,8 @@
 import os from 'node:os';
 
-function num(name: string, fallback: number): number {
-  const v = process.env[name];
-  if (v === undefined || v === '') return fallback;
-  const n = Number(v);
-  if (!Number.isFinite(n)) throw new Error(`Invalid number for ${name}`);
-  return n;
-}
+import { envNumber } from '@mediverify/shared';
+
+const num = (name: string, fallback: number) => envNumber(process.env, name, fallback);
 
 export const config = {
   databaseUrl:
@@ -24,4 +20,17 @@ export const config = {
   verifyConcurrency: num('VERIFY_CONCURRENCY', 3),
   heartbeatFile: process.env.WORKER_HEARTBEAT_FILE ?? '/tmp/worker.heartbeat',
   sofficeBin: process.env.SOFFICE_BIN,
+  maxDocumentPages: num('MAX_DOCUMENT_PAGES', 50),
+  maxDocumentChars: num('MAX_DOCUMENT_CHARS', 150_000),
+  // Prices are optional; without them cost is reported as unknown, never guessed.
+  llmPricing:
+    process.env.LLM_PRICE_INPUT_PER_MTOK && process.env.LLM_PRICE_OUTPUT_PER_MTOK
+      ? {
+          inputPerMTok: num('LLM_PRICE_INPUT_PER_MTOK', 0),
+          outputPerMTok: num('LLM_PRICE_OUTPUT_PER_MTOK', 0),
+        }
+      : undefined,
+  maintenanceSeconds: num('MAINTENANCE_INTERVAL_SECONDS', 3600),
+  eventRetentionDays: num('EVENT_RETENTION_DAYS', 30),
+  documentRetentionDays: num('DOCUMENT_RETENTION_DAYS', 0),
 };

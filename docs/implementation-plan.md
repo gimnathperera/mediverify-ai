@@ -89,6 +89,43 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   an LLM-only indication conflict needs exclusion language. New eval metric: discrepancy preserved. Final run: all
   metrics 100%.
 
+- 2026-11-10 (frontend quality): Vitest `web` project (jsdom + Testing Library + MSW + axe-core) with 47 component tests
+  over pages, results, upload, auth, SSE progress and the error boundary; Playwright axe scan (WCAG 2.1 AA incl.
+  contrast) on every page. The scans found and fixed: unlabeled file input, label/name mismatches, low-contrast
+  text and toasts, an unfocusable scroll region, a colour-only inline link. UX: results split into focused
+  components; status tiles filter; critical point → verification jump with focus; accessible mobile tabs; document
+  search + status filter; per-page titles; skip link; live progress announcements; honest fixture badge; per-route
+  error boundary; route-level code splitting (entry 572 → 479 KB); gzip bundle budget in CI. Coverage 57.6% → 83.8%.
+
+- 2026-11-10 (toasts): sonner replaced by react-hot-toast 2.6.1 (top-center, its own animations, pause on hover,
+  default durations). `AppToaster` adds a top-right close button; `notify.warning`/`notify.info` add amber "!" and
+  blue "i" icons that copy react-hot-toast's animated-circle icons. Errors and warnings are announced as alerts.
+  3 toaster tests; Playwright smoke + axe pass with toasts on screen. Found while verifying: the worker exits when
+  its LISTEN connection drops (no `error` handler); the API reconnects.
+- 2026-11-10 (worker resilience): fixed. The worker's LISTEN now uses a dedicated client with an `error` handler
+  and exponential-backoff reconnect (`apps/worker/src/queue-listener.ts`); on reconnect it polls once for jobs
+  queued during the outage. Integration test kills the backend with `pg_terminate_backend` (fails without the
+  handler); verified live: the worker logged `queue.listen_error` → `queue.listen_restored` and then ran a job.
+
+- 2026-11-10 (UI polish): document list scrolls inside its own area (page no longer grows; upload panel sticky);
+  reference selector uses a custom chevron; search has its own clear button (ghost-button hover, Escape clears,
+  focus kept); pointer cursor on all clickable controls; sliding tab/filter highlight + tab-panel fade
+  (reduced-motion aware); shaped skeletons replace the session/page/results/viewer spinners; sign-out asks for
+  confirmation in a themed alert dialog. +8 web tests; Playwright axe spec waits for animations to settle.
+  Entry bundle 140 → 154 KB gz (budget 160) from the alert dialog and skeletons.
+
+- 2026-11-11 (hardening sprint, all review items): migration 0002 (finding reasons, citation snapshots, per-job model
+  usage, list/retention indexes). AI: parser fixes (thousands separators, ranges, unit conversion, frequency variants,
+  two-dimensional timing), identity without strength/form, stricter status with per-field reasons, validated
+  new-start evidence, indication applicability, substantive quotes, per-medication failure isolation, RRF retrieval
+  (ablation in evaluation.md), summary attribution + negation checks. Pipeline: input limits, real cancellation
+  (AbortSignal through model calls and LibreOffice), per-job tokens/cost, serialized progress events. API: keyset
+  pagination with server filters and counts, DELETE, retry idempotency, SSE leak/deleted-job fixes, shared
+  reconnecting LISTEN in API + worker, global daily cap, trust proxy, config validation, retention task. Infra: DB on
+  127.0.0.1 with env password, fixture default without a key, origins for WEB_PORT/127.0.0.1, asset security headers,
+  eval-live gated on its secret. Web: infinite list, delete, needs-attention panel, parameter strips, exact PDF
+  highlighting, resilient live updates, 401 → sign-in, zod-free bundle (entry 154 → 128 KB gz).
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).

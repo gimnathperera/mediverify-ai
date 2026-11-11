@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 
 import { type pg } from '@mediverify/db';
+import type { DocumentPageDto } from '@mediverify/shared';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -238,9 +239,81 @@ describe('authorization (IDOR)', () => {
       expect(res.body.error.code).toBe('NOT_FOUND');
     }
     await b.agent.post(`/api/jobs/${jobId}/retry`).expect(404);
+    await b.agent.delete(`/api/documents/${documentId}`).expect(404);
     const list = await b.agent.get('/api/documents').expect(200);
-    expect((list.body as Array<{ id: string }>).map((d) => d.id)).not.toContain(documentId);
+    expect((list.body.items as Array<{ id: string }>).map((d) => d.id)).not.toContain(documentId);
     await b.agent.get('/api/documents/not-a-uuid').expect(404);
+    // The owner's document survived B's delete attempt.
+    await a.agent.get(`/api/documents/${documentId}`).expect(200);
+  });
+});
+
+describe('document list and lifecycle', () => {
+  it('pages newest-first with a stable cursor, filters on the server and counts per status', async () => {
+    const { agent } = await signedInAgent(app, 'paging');
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++)
+      ids.unshift(
+        (await upload(agent, uniquePdf(), `report-${i}.pdf`).expect(202)).body.documentId,
+      );
+    await upload(agent, uniquePdf(), 'other.pdf').expect(202);
+    const failed = (await upload(agent, uniquePdf(), 'report-failed.pdf').expect(202)).body;
+    await pool.query("UPDATE jobs SET status = 'failed' WHERE id = $1", [failed.jobId]);
+
+    const pageOf = (res: request.Response) => res.body as DocumentPageDto;
+    const first = pageOf(await agent.get('/api/documents?limit=2&q=report').expect(200));
+    expect(first.items).toHaveLength(2);
+    expect(first.counts).toEqual({ all: 6, processing: 5, completed: 0, failed: 1 });
+    const seen = first.items.map((d) => d.id);
+    let cursor = first.nextCursor;
+    while (cursor) {
+      const page = pageOf(
+        await agent
+          .get(`/api/documents?limit=2&q=report&cursor=${encodeURIComponent(cursor)}`)
+          .expect(200),
+      );
+      seen.push(...page.items.map((d) => d.id));
+      cursor = page.nextCursor;
+    }
+    expect(seen).toHaveLength(6); // every match exactly once, no gaps or repeats
+    expect(new Set(seen).size).toBe(6);
+    expect(seen.slice(1)).toEqual(ids); // newest first
+
+    const onlyFailed = pageOf(await agent.get('/api/documents?status=failed').expect(200));
+    expect(onlyFailed.items.map((d) => d.filename)).toEqual(['report-failed.pdf']);
+    // ILIKE wildcards in the search are literal.
+    expect((await agent.get('/api/documents?q=%25').expect(200)).body.items).toEqual([]);
+    const bad = await agent.get('/api/documents?cursor=not-a-cursor').expect(400);
+    expect(bad.body.error.code).toBe('VALIDATION_FAILED');
+    await agent.get('/api/documents?status=bogus').expect(400);
+  });
+
+  it('deletes a document with its jobs and results', async () => {
+    const { agent } = await signedInAgent(app, 'delete');
+    const { documentId, jobId } = (await upload(agent).expect(202)).body;
+    await runJob(pool, jobId, deps(pool));
+    await agent.delete(`/api/documents/${documentId}`).expect(204);
+    await agent.get(`/api/documents/${documentId}`).expect(404);
+    await agent.get(`/api/jobs/${jobId}/results`).expect(404);
+    const left = await pool.query(
+      `SELECT (SELECT count(*) FROM jobs WHERE id = $1)::int AS jobs,
+              (SELECT count(*) FROM job_events WHERE job_id = $1)::int AS events,
+              (SELECT count(*) FROM verification_results WHERE job_id = $1)::int AS results`,
+      [jobId],
+    );
+    expect(left.rows[0]).toEqual({ jobs: 0, events: 0, results: 0 });
+    await agent.delete(`/api/documents/${documentId}`).expect(404);
+  });
+
+  it('only the latest failed job can be retried (no duplicate pipelines)', async () => {
+    const { agent } = await signedInAgent(app, 'retry-once');
+    const { jobId } = (await upload(agent).expect(202)).body;
+    await pool.query("UPDATE jobs SET status = 'failed' WHERE id = $1", [jobId]);
+    const [r1, r2] = await Promise.all([
+      agent.post(`/api/jobs/${jobId}/retry`),
+      agent.post(`/api/jobs/${jobId}/retry`),
+    ]);
+    expect([r1.status, r2.status].sort()).toEqual([202, 409]);
   });
 });
 

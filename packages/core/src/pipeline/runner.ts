@@ -2,9 +2,25 @@ import { jobsRepo, LeaseLostError, withTransaction } from '@mediverify/db';
 import { STAGES, type PipelineErrorCode, type StageName } from '@mediverify/shared';
 import type { Logger } from 'pino';
 
-import { LlmError } from '../llm/types.js';
+import { LlmError, scopeLlm, type LlmUsage } from '../llm/types.js';
 
-import { JobState, STAGE_IMPLEMENTATIONS, StageError, type PipelineDeps } from './stages.js';
+import {
+  JobState,
+  STAGE_IMPLEMENTATIONS,
+  StageError,
+  type JobContext,
+  type PipelineDeps,
+  type StageResult,
+} from './stages.js';
+
+/** USD cost of a stage's model usage; null when no prices are configured (never invented). */
+function costOf(
+  u: { promptTokens: number; completionTokens: number },
+  pricing: RunnerOptions['llmPricing'],
+): number | null {
+  if (!pricing) return null;
+  return (u.promptTokens * pricing.inputPerMTok + u.completionTokens * pricing.outputPerMTok) / 1e6;
+}
 
 export interface RunnerOptions {
   workerId: string;
@@ -13,6 +29,8 @@ export interface RunnerOptions {
   retryBaseDelaySeconds: number;
   /** Checked between stages; when true the job is released back to the queue. */
   shouldStop?: () => boolean;
+  /** USD per million tokens; when set, model cost is computed and stored per job. */
+  llmPricing?: { inputPerMTok: number; outputPerMTok: number } | undefined;
 }
 
 export interface ClaimedJobLike {
@@ -34,20 +52,27 @@ function classify(err: unknown): { code: PipelineErrorCode; message: string; ret
   };
 }
 
-async function withTimeout<T>(p: Promise<T>, ms: number, stage: StageName): Promise<T> {
+/**
+ * Race the stage against its time limit. On timeout the stage's AbortController fires, so model
+ * calls, LibreOffice and per-medication scheduling stop instead of running (and spending) on.
+ */
+async function withTimeout<T>(
+  p: Promise<T>,
+  ms: number,
+  stage: StageName,
+  controller: AbortController,
+): Promise<T> {
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () =>
-        reject(
-          new StageError(
-            'STAGE_TIMEOUT',
-            `Stage "${stage}" exceeded ${Math.round(ms / 1000)}s`,
-            true,
-          ),
-        ),
-      ms,
-    );
+    timer = setTimeout(() => {
+      const err = new StageError(
+        'STAGE_TIMEOUT',
+        `Stage "${stage}" exceeded ${Math.round(ms / 1000)}s`,
+        true,
+      );
+      controller.abort(err);
+      reject(err);
+    }, ms);
   });
   try {
     return await Promise.race([p, timeout]);
@@ -76,12 +101,17 @@ export async function runClaimedJob(
   });
   const jobStarted = Date.now();
   let currentStage: StageName | null = null;
-  const ctx = {
+  const ctx: JobContext = {
     jobId: job.id,
     documentId: job.document_id,
     log,
     progress: async (message: string, data: Record<string, unknown> = {}) => {
-      if (currentStage) await jobsRepo.addStageProgress(pool, job.id, currentStage, message, data);
+      // A cancelled (timed-out) stage must not keep writing events for a job it no longer runs.
+      const stage = currentStage;
+      if (stage && !ctx.signal?.aborted)
+        await withTransaction(pool, (c) =>
+          jobsRepo.addStageProgress(c, job.id, stage, message, data),
+        );
     },
   };
   const state = new JobState(deps, ctx);
@@ -111,11 +141,39 @@ export async function runClaimedJob(
       });
       stageLog.info({ event: 'stage.started' }, `stage ${stage} started`);
       const started = Date.now();
-      const result = await withTimeout(
-        STAGE_IMPLEMENTATIONS[stage](deps, state),
-        opts.stageTimeoutMs,
-        stage,
-      );
+      const controller = new AbortController();
+      ctx.signal = controller.signal;
+      ctx.log = stageLog;
+      const usage = { calls: 0, promptTokens: 0, completionTokens: 0 };
+      const stageDeps: PipelineDeps = {
+        ...deps,
+        llm: scopeLlm(deps.llm, {
+          signal: controller.signal,
+          log: stageLog,
+          onUsage: (u: LlmUsage) => {
+            usage.calls++;
+            usage.promptTokens += u.promptTokens;
+            usage.completionTokens += u.completionTokens;
+          },
+        }),
+      };
+      let result: StageResult;
+      try {
+        result = await withTimeout(
+          STAGE_IMPLEMENTATIONS[stage](stageDeps, state),
+          opts.stageTimeoutMs,
+          stage,
+          controller,
+        );
+      } finally {
+        // Spend is recorded even when the stage fails or times out.
+        if (usage.calls > 0)
+          await jobsRepo
+            .addLlmUsage(pool, job.id, { ...usage, costUsd: costOf(usage, opts.llmPricing) })
+            .catch((e: Error) =>
+              stageLog.warn({ event: 'llm.usage_not_recorded', error: e.message }, e.message),
+            );
+      }
       await withTransaction(pool, async (c) => {
         await jobsRepo.assertLease(c, job.id, opts.workerId);
         if (result.persist) await result.persist(c);

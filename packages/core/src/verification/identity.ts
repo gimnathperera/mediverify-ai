@@ -1,4 +1,4 @@
-import { levenshtein, normalizeDrugName } from '../text.js';
+import { drugIdentityKey, levenshtein, normalizeDrugName } from '../text.js';
 
 export interface MonographIdentity {
   id: string;
@@ -15,9 +15,13 @@ export function matchMonograph<T extends MonographIdentity>(
   drugName: string,
   monographs: T[],
 ): T | null {
-  const key = normalizeDrugName(drugName);
-  if (!key) return null;
-  return monographs.find((m) => m.nameNormalized === key || m.aliases.includes(key)) ?? null;
+  // Try the name as written, then without strength/form ("Pravoxil 20 mg tablet" → "pravoxil").
+  for (const key of new Set([normalizeDrugName(drugName), drugIdentityKey(drugName)])) {
+    if (!key) continue;
+    const hit = monographs.find((m) => m.nameNormalized === key || m.aliases.includes(key));
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /** How a matched monograph was identified (for logs and audit). */
@@ -25,12 +29,13 @@ export function identityMatchType(
   drugName: string,
   monograph: MonographIdentity,
 ): 'exact' | 'alias' {
-  return monograph.nameNormalized === normalizeDrugName(drugName) ? 'exact' : 'alias';
+  const keys = [normalizeDrugName(drugName), drugIdentityKey(drugName)];
+  return keys.includes(monograph.nameNormalized) ? 'exact' : 'alias';
 }
 
 /** Similar-looking names surfaced for transparency ("not matched"), never used for verification. */
 export function similarMonographNames(drugName: string, monographs: MonographIdentity[]): string[] {
-  const key = normalizeDrugName(drugName);
+  const key = drugIdentityKey(drugName);
   return monographs
     .filter((m) => {
       const d = levenshtein(key, m.nameNormalized);

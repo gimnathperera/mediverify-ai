@@ -43,11 +43,20 @@ export function parseRoute(s: string | null | undefined): Route | null {
 
 export function parseFrequency(s: string | null | undefined): Frequency | null {
   if (!s) return null;
-  const t = s.toLowerCase();
+  // "twice-daily", "b.i.d." and "q12h" style variants normalise to the spaced/plain forms.
+  const t = s
+    .toLowerCase()
+    .replace(/[-_]/g, ' ')
+    .replace(/\b([a-z])\.(?=[a-z]\.)/g, '$1')
+    .replace(/\b(bid|tid|qid|prn)\./g, '$1');
   if (/\b(as needed|prn)\b/.test(t)) return 'as_needed';
-  if (/\b(four times (a |per )?day|four times daily|qid)\b/.test(t)) return 'four_times_daily';
-  if (/\b(three times (a |per )?day|three times daily|tid)\b/.test(t)) return 'three_times_daily';
-  if (/\b(twice (a |per )?day|twice daily|two times daily|bid|every 12 hours)\b/.test(t))
+  if (/\b(four times (a |per )?day|four times daily|qid|q ?6 ?h|every 6 hours)\b/.test(t))
+    return 'four_times_daily';
+  if (/\b(three times (a |per )?day|three times daily|tid|tds|q ?8 ?h|every 8 hours)\b/.test(t))
+    return 'three_times_daily';
+  if (
+    /\b(twice (a |per )?day|twice daily|two times daily|bid|bd|q ?12 ?h|every 12 hours)\b/.test(t)
+  )
     return 'twice_daily';
   if (
     /\b(once (a |per )?day|once daily|daily|every day|qd|every morning|each morning|every evening|nightly|at bedtime|every night)\b/.test(
@@ -70,15 +79,48 @@ export function parseTiming(s: string | null | undefined): Timing | null {
   return null;
 }
 
-/** Are two timings compatible? (before_breakfast is a morning timing; bedtime≈evening.) */
+// Timing has two independent dimensions: time of day and relation to meals.
+const TIME_OF_DAY: Record<Timing, 'am' | 'pm' | null> = {
+  morning: 'am',
+  before_breakfast: 'am',
+  bedtime: 'pm',
+  evening: 'pm',
+  with_food: null,
+};
+const MEAL: Record<Timing, 'before' | 'with' | null> = {
+  morning: null,
+  before_breakfast: 'before',
+  bedtime: null,
+  evening: null,
+  with_food: 'with',
+};
+
+/**
+ * Compare a prescribed timing with a required one. `undetermined` when the prescription is silent
+ * on the dimension the requirement is about (e.g. "in the morning" vs a "with food" rule) — that is
+ * a gap to report, never a conflict.
+ */
+export function compareTimings(
+  required: Timing,
+  actual: Timing,
+): 'compatible' | 'incompatible' | 'undetermined' {
+  if (required === actual) return 'compatible';
+  if (required === 'bedtime' && actual === 'evening') return 'incompatible'; // bedtime is stricter
+  const [tr, ta, mr, ma] = [
+    TIME_OF_DAY[required],
+    TIME_OF_DAY[actual],
+    MEAL[required],
+    MEAL[actual],
+  ];
+  if (tr && ta && tr !== ta) return 'incompatible';
+  if (mr && ma && mr !== ma) return 'incompatible';
+  if ((mr && !ma) || (tr && !ta)) return 'undetermined';
+  return 'compatible'; // e.g. morning ⊇ before breakfast, evening ⊇ bedtime
+}
+
+/** True only when the timings are positively compatible. */
 export function timingsCompatible(required: Timing, actual: Timing): boolean {
-  if (required === actual) return true;
-  const morning: Timing[] = ['morning', 'before_breakfast'];
-  const night: Timing[] = ['bedtime', 'evening'];
-  if (required === 'morning' && morning.includes(actual)) return true;
-  if (required === 'evening' && night.includes(actual)) return true;
-  if (required === 'bedtime' && actual === 'evening') return false; // bedtime is stricter
-  return false;
+  return compareTimings(required, actual) === 'compatible';
 }
 
 const WORD_NUM: Record<string, number> = {
@@ -96,7 +138,7 @@ const WORD_NUM: Record<string, number> = {
 };
 
 export function parseNumber(s: string): number | null {
-  const n = Number(s);
+  const n = Number(s.replace(/,/g, ''));
   if (Number.isFinite(n)) return n;
   return WORD_NUM[s.toLowerCase()] ?? null;
 }
@@ -106,11 +148,40 @@ export interface ParsedDose {
   unit: string;
 }
 
+const DOSE_NUM = '\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?';
+const DOSE_UNIT = 'mg|mcg|µg|g|units?|iu|ml';
+const DOSE_RE = new RegExp(`(${DOSE_NUM})\\s*(${DOSE_UNIT})\\b`, 'i');
+// "5-10 mg", "5 to 10 mg" (range) and "25/100 mg" (combination strength).
+const DOSE_AMBIGUOUS_RE = new RegExp(
+  `(?:${DOSE_NUM})\\s*(?:-|–|to|/)\\s*(?:${DOSE_NUM})\\s*(?:${DOSE_UNIT})\\b`,
+  'i',
+);
+
+/** True for ranges and combination strengths, which must never collapse to a single value. */
+export function isAmbiguousDose(s: string | null | undefined): boolean {
+  return Boolean(s && DOSE_AMBIGUOUS_RE.test(s));
+}
+
 export function parseDose(s: string | null | undefined): ParsedDose | null {
-  if (!s) return null;
-  const m = /(\d+(?:\.\d+)?)\s*(mg|mcg|µg|g|units?|iu|ml)\b/i.exec(s);
+  if (!s || isAmbiguousDose(s)) return null;
+  const m = DOSE_RE.exec(s);
   if (!m) return null;
-  return { value: Number(m[1]), unit: normalizeUnit(m[2]!) };
+  const value = parseNumber(m[1]!);
+  return value === null ? null : { value, unit: normalizeUnit(m[2]!) };
+}
+
+const MG_PER: Record<string, number> = { mcg: 0.001, mg: 1, g: 1000 };
+
+/**
+ * Express `value unit` in `target` unit when both are mass units (mcg/mg/g); null otherwise.
+ * Lets "0.5 g" be compared with a "500 mg" rule instead of being reported as a unit conflict.
+ */
+export function convertDose(value: number, unit: string, target: string): number | null {
+  if (unit === target) return value;
+  const from = MG_PER[unit];
+  const to = MG_PER[target];
+  if (from === undefined || to === undefined) return null;
+  return Math.round(((value * from) / to) * 1e6) / 1e6;
 }
 
 export function normalizeUnit(u: string): string {

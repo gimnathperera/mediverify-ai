@@ -29,6 +29,7 @@ export class FixtureProvider implements LlmProvider {
     if (!result.success) {
       throw new LlmError('MODEL_OUTPUT_INVALID', `Fixture ${req.fixtureKey} does not match schema`);
     }
+    req.onUsage?.({ promptTokens: 0, completionTokens: 0 }); // counted as a call, no tokens
     return result.data;
   }
 }

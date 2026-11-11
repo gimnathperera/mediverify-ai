@@ -1,8 +1,10 @@
+export * from './listener.js';
 export * from './migrator.js';
 export * from './pool.js';
 export * as documentsRepo from './repos/documents.js';
 export * as eventsRepo from './repos/events.js';
 export * as jobsRepo from './repos/jobs.js';
+export * as maintenanceRepo from './repos/maintenance.js';
 export * as referencesRepo from './repos/references.js';
 export * as resultsRepo from './repos/results.js';
 export * as usersRepo from './repos/users.js';
