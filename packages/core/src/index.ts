@@ -22,3 +22,4 @@ export * from './pipeline/providers.js';
 export * from './pipeline/reference-index.js';
 export * from './pipeline/stages.js';
 export * from './pipeline/runner.js';
+export * from './pipeline/verify-context.js';

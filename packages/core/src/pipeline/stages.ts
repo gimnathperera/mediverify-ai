@@ -5,26 +5,26 @@ import {
   type pg,
   type PoolClient,
 } from '@mediverify/db';
-import type { PipelineErrorCode, StageName } from '@mediverify/shared';
+import {
+  MAX_DOCX_EXPANDED_BYTES,
+  zipUncompressedSize,
+  type PipelineErrorCode,
+  type StageName,
+} from '@mediverify/shared';
 import type { Logger } from 'pino';
 
 import { chunkPrimary } from '../chunking/primary.js';
 import type { EmbeddingProvider, LlmProvider } from '../llm/types.js';
 import { convertDocxToPdf, isDocx, isPdf, parsePdf } from '../parsing/index.js';
 import type { ParsedDocument } from '../parsing/types.js';
-import type { MonographRules } from '../rules/monograph-rules.js';
 import { extractCriticalPoints } from '../tasks/critical-points.js';
 import { extractMedications } from '../tasks/entities.js';
 import { generateSummary } from '../tasks/summary.js';
-import { retrieveEvidence } from '../verification/retrieval.js';
-import {
-  retrievalQuery,
-  verifyMedication,
-  type ChunkLike,
-} from '../verification/verify-medication.js';
+import { retrievalQuery, verifyMedication } from '../verification/verify-medication.js';
 
 import { mapWithConcurrency } from './concurrency.js';
 import { ensureReferenceIndexed } from './reference-index.js';
+import { loadVerifyContext } from './verify-context.js';
 
 export interface PipelineConfig {
   retrievalTopK: number;
@@ -104,6 +104,12 @@ export class JobState {
     if (!isDocx(doc.bytes))
       throw new StageError('UNSUPPORTED_DOCUMENT', 'File is neither a PDF nor a DOCX document');
     if (doc.preview_pdf) return { bytes: doc.preview_pdf, converted: null };
+    // Defence in depth (the API checks too): never hand LibreOffice a zip bomb.
+    if (zipUncompressedSize(doc.bytes) > MAX_DOCX_EXPANDED_BYTES)
+      throw new StageError(
+        'UNSUPPORTED_DOCUMENT',
+        'The DOCX expands to more than 50 MB when unpacked; it cannot be processed',
+      );
     try {
       const converted = await convertDocxToPdf(doc.bytes, {
         binary: this.deps.config.sofficeBin,
@@ -300,29 +306,14 @@ const verified: StageFn = async (deps, state) => {
   const { pool, embedder, config } = deps;
   const doc = await state.document();
   const refId = doc.reference_document_id;
-  const ref = await referencesRepo.getReferenceForIndexing(pool, refId);
-  if (ref?.index_status !== 'ready') {
+  const verify = await loadVerifyContext(pool, embedder, config, refId);
+  if (!verify) {
     throw new StageError(
       'REFERENCE_INDEX_FAILED',
       'Reference index is not available; verification cannot run',
     );
   }
-  const monographs = (await referencesRepo.listMonographs(pool, refId)).map((m) => ({
-    id: m.id,
-    name: m.name,
-    nameNormalized: m.name_normalized,
-    aliases: m.aliases,
-    rules: m.rules as MonographRules | null,
-    pageStart: m.page_start,
-  }));
-  const cov = await referencesRepo.getCoverageChunk(pool, refId);
-  const toChunk = (r: referencesRepo.ReferenceChunkRow): ChunkLike => ({
-    id: r.id,
-    monographId: r.monograph_id,
-    fieldLabel: r.field_label,
-    page: r.page_start,
-    text: r.text,
-  });
+  const { monographs } = verify;
   const meds = await resultsRepo.getMedications(pool, state.ctx.jobId);
   const prefix = await state.fixturePrefix;
   const primaryText = (await state.parsed()).pages.map((p) => p.text).join('\n');
@@ -338,28 +329,8 @@ const verified: StageFn = async (deps, state) => {
         out = await verifyMedication(
           med,
           monographs,
-          {
-            llm: deps.llm,
+          verify.deps(deps.llm, {
             primaryText,
-            coverageChunk: cov ? toChunk(cov) : null,
-            minScore: config.retrievalMinScore,
-            referenceTitle: `${ref.title} (rev. ${ref.version_label})`,
-            monographChunks: async (id) =>
-              (await referencesRepo.getChunksForMonograph(pool, id)).map(toChunk),
-            retrieve: (id, m) =>
-              retrieveEvidence({
-                med: m,
-                topK: config.retrievalTopK,
-                embed: (text) => embedder.embedQuery(text),
-                rank: async (embedding, text) =>
-                  (await referencesRepo.rankMonographFieldChunks(pool, id, embedding, text)).map(
-                    (r) => ({
-                      ...toChunk(r),
-                      vectorScore: r.vector_score,
-                      textScore: r.text_score,
-                    }),
-                  ),
-              }),
             primaryContext: async (m) => {
               const qv = await embedder.embedQuery(retrievalQuery(m));
               const rows = await resultsRepo.searchDocumentChunksByName(
@@ -371,7 +342,7 @@ const verified: StageFn = async (deps, state) => {
               );
               return rows.map((r) => `[page ${r.page_start}] ${r.text}`);
             },
-          },
+          }),
           `${prefix}/verify--${med.drugNameNormalized}`,
         );
       } catch (err) {

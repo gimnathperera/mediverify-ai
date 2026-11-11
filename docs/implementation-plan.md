@@ -125,6 +125,22 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   127.0.0.1 with env password, fixture default without a key, origins for WEB_PORT/127.0.0.1, asset security headers,
   eval-live gated on its secret. Web: infinite list, delete, needs-attention panel, parameter strips, exact PDF
   highlighting, resilient live updates, 401 → sign-in, zod-free bundle (entry 154 → 128 KB gz).
+- 2026-11-11 (follow-up): robustness evaluation (14 prescription perturbations 14/14; scripted adversarial model
+  accepted 0 fabricated claims and kept all 3 real contradictions; injected extraction dropped) shared by `pnpm eval`
+  and an integration test via `loadVerifyContext` (extracted from the verified stage); failed jobs show what they
+  completed as "Partial results"; on small screens "show in document" moves focus to the PDF and back; sticky
+  medication column; DOCX zip-bomb guard (central-directory size ≤ 50 MB, API 413 + worker check); removed unused
+  `mammoth` and npm `pgvector`; CODEOWNERS owner set. Locally 78 unit / 71 web / 58 integration / 6 Playwright,
+  coverage 86.0% statements.
+- 2026-11-11 (UX review, 14 items): fixed a failed sign-in error leaking onto sign-up (route keys) and the search
+  field unmounting (losing focus, flashing "No documents yet") when a zero-match search was cleared (counts are per
+  search; the toolbar now waits for a settled unfiltered result). Sign-up forms gained a confirm field, a password
+  show/hide toggle and inline validation sharing the API's limits; server field errors map back to fields. Sign-up is
+  open in every mode unless `ALLOW_SIGNUP=false`; `/auth/me` answers 200 `{user|null}` (no console 401). Finished
+  pipelines are an accordion (failed opens on the failing stage, now counting completed stages). CSS-only list and
+  drawer animations, back-to-top, taller viewer with a stable scrollbar gutter, smooth scrolling, all honouring reduced
+  motion; shield favicon. The revoked-session integration check now actually replays the old cookie (it was skipped).
+  Locally 78 unit / 87 web / 58 integration / 6 Playwright; coverage 86.8% statements; console clean across flows.
 
 ## Known risks
 

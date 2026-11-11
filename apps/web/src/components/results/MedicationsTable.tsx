@@ -2,6 +2,7 @@ import type { MedicationDto } from '@mediverify/shared/client';
 import { AlertTriangle, FileSearch } from 'lucide-react';
 import type * as React from 'react';
 
+import { cn } from '../../lib/utils';
 import { Card, EmptyState } from '../ui/primitives';
 
 const HEADERS = [
@@ -14,6 +15,9 @@ const HEADERS = [
   'Indication',
   'Source',
 ];
+
+// The drug name stays visible while the table scrolls sideways (e.g. to the Source links).
+const STICKY_CELL = 'sticky left-0 z-10 shadow-[1px_0_0_var(--color-slate-200)]';
 
 const Missing = ({ label = '—' }: { label?: string }) => (
   <span className="text-slate-500">
@@ -42,7 +46,14 @@ export function MedicationsTable({
         <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-600">
           <tr>
             {HEADERS.map((h) => (
-              <th key={h} scope="col" className="px-3 py-2 font-medium">
+              <th
+                key={h}
+                scope="col"
+                className={cn(
+                  'px-3 py-2 font-medium',
+                  h === 'Medication' && STICKY_CELL + ' bg-slate-50',
+                )}
+              >
                 {h}
               </th>
             ))}
@@ -51,7 +62,10 @@ export function MedicationsTable({
         <tbody className="divide-y divide-slate-100">
           {medications.map((m) => (
             <tr key={m.id} className="align-top">
-              <th scope="row" className="px-3 py-2 font-medium text-slate-900">
+              <th
+                scope="row"
+                className={cn('px-3 py-2 font-medium text-slate-900', STICKY_CELL, 'bg-white')}
+              >
                 {m.drugName}
                 {m.ambiguities.length > 0 && (
                   <span

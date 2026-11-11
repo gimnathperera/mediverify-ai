@@ -1,0 +1,155 @@
+{
+  "$comment": "Perturbation cases for the verification core (TEST/EVAL ONLY, never read by production code). Each case is an extraction as the model might return it from a different discharge summary; expectations follow the rules parsed from the formulary digest rev 8.2. Run with a model that takes no position, so outcomes come from parsing, identity, retrieval and deterministic rules alone.",
+  "cases": [
+    {
+      "id": "strength-in-name",
+      "what": "Drug name written with strength and form",
+      "extraction": {
+        "drug_name": "Velantine 10 mg tablet",
+        "dose_raw": "10 mg",
+        "frequency_raw": "once-daily"
+      },
+      "expect": { "status": "supported" }
+    },
+    {
+      "id": "generic-in-brackets",
+      "what": "Brand with the generic in brackets; bedtime as required",
+      "extraction": {
+        "drug_name": "Pravoxil (simvastatin)",
+        "dose_raw": "20 mg",
+        "frequency_raw": "once daily",
+        "timing_raw": "at bedtime",
+        "indication": "Hyperlipidemia"
+      },
+      "expect": { "status": "supported" }
+    },
+    {
+      "id": "grams",
+      "what": "Dose in grams (0.01 g = 10 mg)",
+      "extraction": {
+        "drug_name": "Velantine",
+        "dose_raw": "0.01 g",
+        "frequency_raw": "once daily"
+      },
+      "expect": { "status": "supported" }
+    },
+    {
+      "id": "thousands-separator",
+      "what": "\"1,000 mg\" must parse as 1000, above the 40 mg maximum",
+      "extraction": {
+        "drug_name": "Velantine",
+        "dose_raw": "1,000 mg",
+        "frequency_raw": "once daily"
+      },
+      "expect": { "status": "contradicted", "conflicts": ["dose"] }
+    },
+    {
+      "id": "hyphenated-frequency",
+      "what": "\"twice-daily\" against a once-daily rule",
+      "extraction": {
+        "drug_name": "Pravoxil",
+        "dose_raw": "20 mg",
+        "frequency_raw": "twice-daily",
+        "timing_raw": "at bedtime",
+        "indication": "Hyperlipidemia"
+      },
+      "expect": { "status": "contradicted", "conflicts": ["frequency"] }
+    },
+    {
+      "id": "forbidden-timing",
+      "what": "Morning dosing where the monograph forbids it",
+      "extraction": {
+        "drug_name": "Pravoxil",
+        "dose_raw": "20 mg",
+        "frequency_raw": "once daily",
+        "timing_raw": "in the morning",
+        "indication": "Hyperlipidemia"
+      },
+      "expect": { "status": "contradicted", "conflicts": ["timing"] }
+    },
+    {
+      "id": "duration-in-days",
+      "what": "21 days is within the 4-week limit",
+      "extraction": {
+        "drug_name": "Etrazolam",
+        "dose_raw": "0.5 mg",
+        "frequency_raw": "twice daily",
+        "duration_raw": "21 days",
+        "indication": "Acute anxiety"
+      },
+      "expect": { "status": "supported" }
+    },
+    {
+      "id": "duration-over-limit",
+      "what": "6 weeks exceeds the 4-week limit",
+      "extraction": {
+        "drug_name": "Etrazolam",
+        "dose_raw": "0.5 mg",
+        "frequency_raw": "BD",
+        "duration_raw": "6 weeks",
+        "indication": "Acute anxiety"
+      },
+      "expect": { "status": "contradicted", "conflicts": ["duration"] }
+    },
+    {
+      "id": "meal-relation-unstated",
+      "what": "\"in the morning\" doesn't say whether it is before breakfast",
+      "extraction": {
+        "drug_name": "Quintaxin",
+        "dose_raw": "20 mg",
+        "frequency_raw": "once daily",
+        "timing_raw": "in the morning",
+        "duration_raw": "8 weeks, reassess",
+        "indication": "GERD prophylaxis"
+      },
+      "expect": { "status": "incomplete", "gaps": ["timing"] }
+    },
+    {
+      "id": "new-start-undocumented",
+      "what": "Above the starting dose; whether it is a new start is unknown",
+      "extraction": {
+        "drug_name": "Cordizem-XR",
+        "dose_raw": "100 mg",
+        "frequency_raw": "once daily",
+        "timing_raw": "every morning",
+        "indication": "Rate control",
+        "is_new_start": null
+      },
+      "expect": { "status": "incomplete", "gaps": ["dose"] }
+    },
+    {
+      "id": "dose-range",
+      "what": "A range is never collapsed to one value",
+      "extraction": {
+        "drug_name": "Cordizem-XR",
+        "dose_raw": "50-100 mg",
+        "frequency_raw": "once daily",
+        "timing_raw": "every morning",
+        "indication": "Rate control"
+      },
+      "expect": { "status": "incomplete", "gaps": ["dose"] }
+    },
+    {
+      "id": "unconvertible-unit",
+      "what": "Oral solution in mL against a mg monograph",
+      "extraction": { "drug_name": "Velantine", "dose_raw": "5 mL", "frequency_raw": "once daily" },
+      "expect": { "status": "incomplete", "gaps": ["dose"] }
+    },
+    {
+      "id": "prn",
+      "what": "As-needed use against a scheduled regimen",
+      "extraction": { "drug_name": "Velantine", "dose_raw": "10 mg", "frequency_raw": "as needed" },
+      "expect": { "status": "incomplete", "gaps": ["frequency"] }
+    },
+    {
+      "id": "look-alike-name",
+      "what": "Look-alike of a listed drug never borrows its monograph",
+      "extraction": {
+        "drug_name": "Velantina",
+        "dose_raw": "10 mg",
+        "frequency_raw": "once daily"
+      },
+      "expect": { "status": "unsupported" }
+    }
+  ]
+}

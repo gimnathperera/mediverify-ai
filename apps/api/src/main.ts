@@ -28,9 +28,9 @@ async function main() {
       'COOKIE_SECURE is false: set it to true when serving over HTTPS',
     );
   if (config.signupEnabled && config.llmProvider !== 'fixture' && config.llmConfigured)
-    logger.warn(
+    logger.info(
       { event: 'config.open_signup' },
-      'Self-service sign-up is enabled with a paid model key; rely on DAILY_JOB_LIMIT and GLOBAL_DAILY_JOB_LIMIT',
+      'Self-service sign-up is on with a paid model key; spend is capped by DAILY_JOB_LIMIT and GLOBAL_DAILY_JOB_LIMIT (set ALLOW_SIGNUP=false to close it)',
     );
   const stop = async () => {
     await app.close();

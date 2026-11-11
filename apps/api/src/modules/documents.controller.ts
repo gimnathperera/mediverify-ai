@@ -6,10 +6,12 @@ import {
   documentListQuerySchema,
   DOCX_MIME,
   extensionOf,
+  MAX_DOCX_EXPANDED_BYTES,
   MAX_UPLOAD_BYTES,
   PDF_MIME,
   sniffDocumentType,
   uploadFieldsSchema,
+  zipUncompressedSize,
   type DocumentDto,
   type DocumentPageDto,
   type UploadResponse,
@@ -83,6 +85,14 @@ export class DocumentsController {
         415,
         'UNSUPPORTED_MEDIA_TYPE',
         'File content does not match a PDF or DOCX document',
+      );
+    }
+    // A DOCX is a zip: refuse one that would expand to an unreasonable size before anything opens it.
+    if (sniffed === 'docx' && zipUncompressedSize(file.buffer) > MAX_DOCX_EXPANDED_BYTES) {
+      throw new ApiError(
+        413,
+        'PAYLOAD_TOO_LARGE',
+        'The DOCX expands to more than 50 MB when unpacked; it cannot be processed',
       );
     }
     const sha256 = createHash('sha256').update(file.buffer).digest('hex');

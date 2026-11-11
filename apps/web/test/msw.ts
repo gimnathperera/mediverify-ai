@@ -113,7 +113,7 @@ export function documentsHandler(docs: DocumentDto[]) {
 
 export const handlers = [
   http.get('/api/config', () => HttpResponse.json(fx.config())),
-  http.get('/api/auth/me', () => HttpResponse.json(fx.user())),
+  http.get('/api/auth/me', () => HttpResponse.json({ user: fx.user() })),
   http.get('/api/references', () => HttpResponse.json(fx.references())),
   documentsHandler([fx.document()]),
   http.delete('/api/documents/:id', () => new HttpResponse(null, { status: 204 })),

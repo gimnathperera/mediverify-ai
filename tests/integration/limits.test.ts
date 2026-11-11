@@ -101,14 +101,14 @@ describe('deployment limits', () => {
     }
   });
 
-  it('defaults sign-up to off when a paid model key is configured', async () => {
+  it('keeps sign-up on with a paid model key (only ALLOW_SIGNUP=false closes it)', async () => {
     const paid = await startApp(pool, {
       LLM_PROVIDER: 'openai',
       OPENAI_API_KEY: 'sk-test-not-used',
     });
     try {
       const cfg = await request(paid.app.getHttpServer()).get('/api/config').expect(200);
-      expect(cfg.body).toMatchObject({ signupEnabled: false });
+      expect(cfg.body).toMatchObject({ signupEnabled: true });
     } finally {
       await paid.app.close();
     }

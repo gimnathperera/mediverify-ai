@@ -97,6 +97,28 @@ describe('DocumentsPage', () => {
     expect(search).toHaveValue('');
   });
 
+  it('clearing a search that matched nothing keeps the search field and focus (no flash)', async () => {
+    server.use(documentsHandler(LIST));
+    const { user } = renderWithProviders(<DocumentsPage />);
+    const list = screen.getByRole('list', { name: 'Documents' });
+    await within(list).findAllByRole('link');
+    const search = screen.getByRole('searchbox', { name: /search documents/i });
+
+    // Counts are per search: a zero-match search reports all = 0 for that search only.
+    await user.type(search, 'zzz');
+    expect(await screen.findByText('No documents match')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear search' }));
+
+    // The field is never unmounted while the unfiltered list reloads, so focus stays put …
+    expect(screen.getByRole('searchbox', { name: /search documents/i })).toBe(search);
+    expect(search).toHaveFocus();
+    // … and the "no documents at all" state is never shown on the stale zero counts.
+    expect(screen.queryByText('No documents yet')).not.toBeInTheDocument();
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
+    expect(screen.queryByText('No documents yet')).not.toBeInTheDocument();
+    expect(search).toHaveFocus();
+  });
+
   it('shows an empty state for a new user', async () => {
     server.use(documentsHandler([]));
     renderWithProviders(<DocumentsPage />);
@@ -142,7 +164,8 @@ describe('DocumentsPage', () => {
     expect(await screen.findByText(/upload rejected/i)).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent(/daily job limit reached/i);
     await user.click(screen.getByRole('button', { name: /dismiss/i }));
-    expect(screen.queryByText(/upload rejected/i)).not.toBeInTheDocument();
+    // The card fades out, then is removed.
+    await waitFor(() => expect(screen.queryByText(/upload rejected/i)).not.toBeInTheDocument());
   });
 
   it('has no detectable accessibility violations', async () => {

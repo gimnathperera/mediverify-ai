@@ -119,6 +119,25 @@ export function citeEvidence(
   return { chunkId: null, quote: evidence[0]!.quote, valid: false };
 }
 
+/**
+ * The passages the verifier sees: retrieved chunks that passed the relevance gate, plus every field
+ * a deterministic rule cites (deduped), so a ranking miss can never hide a constraint. `pnpm eval`
+ * reports retrieval Recall@K (ranking only) and the coverage of these final passages separately.
+ */
+export function evidencePassages(
+  relevant: RetrievedChunk[],
+  fieldChunks: ChunkLike[],
+  det: DetFinding[],
+): RetrievedChunk[] {
+  const evidenceLabels = new Set(det.flatMap((d) => d.evidence.map((e) => e.fieldLabel)));
+  const passages: RetrievedChunk[] = [...relevant];
+  for (const c of fieldChunks) {
+    if (evidenceLabels.has(c.fieldLabel ?? '') && !passages.some((p) => p.id === c.id))
+      passages.push({ ...c, score: 0, vectorScore: 0 });
+  }
+  return passages;
+}
+
 export function retrievalQuery(med: MedicationForCheck): string {
   return [
     med.drugName,
@@ -224,14 +243,10 @@ export async function verifyMedication(
 
   const det = monograph.rules ? deterministicChecks(med, monograph.rules) : [];
 
-  // Passages for the LLM: retrieved + any field the deterministic evidence relies on (deduped).
-  const evidenceLabels = new Set(det.flatMap((d) => d.evidence.map((e) => e.fieldLabel)));
-  const passageChunks: RetrievedChunk[] = [...relevant];
-  for (const c of fieldChunks) {
-    if (evidenceLabels.has(c.fieldLabel ?? '') && !passageChunks.some((p) => p.id === c.id))
-      passageChunks.push({ ...c, score: 0, vectorScore: 0 });
-  }
-  const passages = passageChunks.map((c, i) => ({ id: `P${i + 1}`, chunk: c }));
+  const passages = evidencePassages(relevant, fieldChunks, det).map((c, i) => ({
+    id: `P${i + 1}`,
+    chunk: c,
+  }));
 
   const llmOut: VerifyOutput = await deps.llm.generate({
     task: 'verify',

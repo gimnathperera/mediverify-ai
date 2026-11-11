@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
 import { highlightRanges } from '../lib/highlight';
+import { scrollBehavior } from '../lib/utils';
 
 import { Alert, Button, Skeleton } from './ui/primitives';
 
@@ -93,7 +94,7 @@ export function PdfViewer({
     const mark = box.current?.querySelector('mark');
     if (!mark) return;
     scrolledFor.current = highlightKey;
-    mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    mark.scrollIntoView({ block: 'center', behavior: scrollBehavior() });
   }, [highlightKey]);
   const notFound = Boolean(items) && highlights.length > 0 && ranges.size === 0;
 
@@ -178,7 +179,9 @@ export function PdfViewer({
         tabIndex={0}
         role="region"
         aria-label={`${title}, page ${page}`}
-        className="min-h-0 flex-1 overflow-auto bg-slate-100 p-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600"
+        // A stable scrollbar gutter: the fit-to-width page no longer resizes (and re-wraps) when the
+        // vertical scrollbar appears or disappears.
+        className="min-h-0 flex-1 overflow-auto bg-slate-100 p-2 [scrollbar-gutter:stable] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-brand-600"
       >
         {error ? (
           <Alert tone="danger" title="Could not display the document">

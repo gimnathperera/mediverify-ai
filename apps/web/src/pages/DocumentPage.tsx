@@ -1,12 +1,12 @@
-import { isTerminalJobStatus } from '@mediverify/shared/client';
+import { isTerminalJobStatus, STAGE_LABELS } from '@mediverify/shared/client';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FileText, RotateCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { PdfViewer } from '../components/LazyPdfViewer';
-import { PipelineTimeline } from '../components/PipelineTimeline';
+import { PipelineAccordion, PipelineTimeline } from '../components/PipelineTimeline';
 import { ResultsView } from '../components/results/ResultsView';
 import { DocumentPageSkeleton, ResultsSkeleton } from '../components/skeletons';
 import { JobStatusBadge } from '../components/status';
@@ -26,7 +26,6 @@ import {
 import { notify } from '../lib/toast';
 import { useJobStream } from '../lib/useJobStream';
 import { usePageTitle } from '../lib/usePageTitle';
-import { formatDuration, formatUsage } from '../lib/utils';
 
 type Pane = 'results' | 'document';
 
@@ -46,6 +45,8 @@ export function DocumentPage() {
   const remove = useDeleteDocument();
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const documentPane = useRef<HTMLDivElement>(null);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
   const [page, setPage] = useState(1);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [pane, setPane] = useState<Pane>('results');
@@ -70,10 +71,36 @@ export function DocumentPage() {
     );
   }
   const d = doc.data!;
-  const totalMs = job.data?.stages.reduce((n, s) => n + (s.durationMs ?? 0), 0) ?? 0;
   const canPreview =
     d.mimeType === 'application/pdf' ||
     job.data?.stages.find((s) => s.stage === 'parsed')?.status === 'completed';
+
+  // A failed job keeps what it completed (e.g. summary and extraction before verification failed).
+  const r = results.data;
+  const partial =
+    failed &&
+    r &&
+    Boolean(r.summary || r.criticalPoints.length || r.medications.length || r.verifications.length);
+  const showResults = (done || partial) && r;
+
+  /** Show a quote in the PDF. On small screens that switches panes: move focus with it. */
+  const showQuote = (p: number | null, quote: string) => {
+    if (p) setPage(p);
+    setHighlights([quote]);
+    setPane('document');
+    if (window.matchMedia?.('(min-width: 1024px)').matches) return; // side by side: focus stays
+    returnFocusTo.current = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => {
+      const pane = documentPane.current;
+      (pane?.querySelector<HTMLElement>('[role="region"][tabindex="0"]') ?? pane)?.focus();
+    });
+  };
+  const backToResults = () => {
+    setPane('results');
+    requestAnimationFrame(() => {
+      if (returnFocusTo.current?.isConnected) returnFocusTo.current.focus();
+    });
+  };
 
   const onRetry = () => {
     if (!jobId) return;
@@ -158,24 +185,16 @@ export function DocumentPage() {
       )}
       {!jobId && <Alert tone="warning" title="No processing job found for this document" />}
 
-      {job.data && !done && <PipelineTimeline job={job.data} stream={state} notes={notes} />}
+      {/* Live card while processing; a collapsible summary once the job has finished. */}
+      {job.data && !done && !failed && (
+        <PipelineTimeline job={job.data} stream={state} notes={notes} />
+      )}
       {failed && (
         <Alert tone="danger" title="Processing failed">
           {jobFailureMessage(job.data!.errorCode, job.data!.errorMessage)}
         </Alert>
       )}
-      {done && job.data && (
-        <details className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm">
-          <summary className="cursor-pointer select-none text-slate-700">
-            Pipeline completed — {job.data.stages.length}/{job.data.stages.length} stages in{' '}
-            {formatDuration(totalMs)}
-            {formatUsage(job.data.llmUsage, job.data.llmProvider)}
-          </summary>
-          <div className="py-3">
-            <PipelineTimeline job={job.data} stream={state} notes={notes} compact />
-          </div>
-        </details>
-      )}
+      {job.data && (done || failed) && <PipelineAccordion key={job.data.id} job={job.data} />}
 
       {/* One layout: side by side on large screens, tabs on small screens (same DOM, so the PDF
           viewer keeps its page when switching). */}
@@ -195,11 +214,16 @@ export function DocumentPage() {
         </Tabs.List>
         <div className="grid gap-4 lg:grid-cols-2">
           <Tabs.Content
+            ref={documentPane}
             value="document"
             forceMount
             className="data-[state=inactive]:hidden lg:data-[state=inactive]:block"
           >
-            <Card className="h-[75vh] overflow-hidden lg:sticky lg:top-20">
+            <Button variant="ghost" size="sm" className="mb-2 lg:hidden" onClick={backToResults}>
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back to results
+            </Button>
+            {/* Tall, portrait-friendly reading area: fills the viewport below the sticky header. */}
+            <Card className="h-[80dvh] overflow-hidden lg:sticky lg:top-20 lg:h-[calc(100dvh-6rem)]">
               {canPreview ? (
                 <PdfViewer
                   url={`/api/documents/${d.id}/file`}
@@ -227,16 +251,15 @@ export function DocumentPage() {
                 {results.error.message}
               </Alert>
             )}
-            {done && results.data && (
-              <ResultsView
-                results={results.data}
-                onShowPrimaryQuote={(p, quote) => {
-                  if (p) setPage(p);
-                  setHighlights([quote]);
-                  setPane('document');
-                }}
-              />
+            {partial && (
+              <Alert tone="warning" title="Partial results" className="mb-4">
+                Processing stopped at{' '}
+                {job.data?.currentStage ? STAGE_LABELS[job.data.currentStage] : 'a stage'}. What was
+                completed before the failure is shown below; later sections are empty. Retry to
+                finish.
+              </Alert>
             )}
+            {showResults && <ResultsView results={r} onShowPrimaryQuote={showQuote} />}
             {!done && !failed && (
               <Card className="p-6 text-sm text-slate-600">
                 <Spinner label="Results will appear here when verification completes." />

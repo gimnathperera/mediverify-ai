@@ -173,6 +173,11 @@ export function reconcileMedications(doc: ParsedDocument, extracted: ExtractedMe
   return { medications: records, notes };
 }
 
+/** A medication record from one extracted entry, with the pipeline's normalisation (no document checks). */
+export function medicationFromExtraction(m: ExtractedMedication): MedicationRecord {
+  return buildRecord(m, drugIdentityKey(m.drug_name));
+}
+
 function buildRecord(m: ExtractedMedication, key: string): MedicationRecord {
   const ambiguities = [...m.ambiguities];
   // The model's numeric dose must agree with the dose text it was read from; ranges and combination

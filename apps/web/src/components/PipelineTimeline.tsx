@@ -1,8 +1,9 @@
 import { STAGE_LABELS, type JobDto } from '@mediverify/shared/client';
-import { Radio, WifiOff } from 'lucide-react';
+import { ChevronDown, Radio, WifiOff } from 'lucide-react';
+import { useId, useState } from 'react';
 
 import type { ProgressNote, StreamState } from '../lib/useJobStream';
-import { cn, formatDuration, formatTime } from '../lib/utils';
+import { cn, formatDuration, formatTime, formatUsage } from '../lib/utils';
 
 import { JobStatusBadge, StageIcon } from './status';
 import { Card } from './ui/primitives';
@@ -77,46 +78,7 @@ export function PipelineTimeline({
           style={{ width: `${(done / job.stages.length) * 100}%` }}
         />
       </div>
-      <ol
-        className={cn('mt-4 grid gap-1', compact ? 'sm:grid-cols-2 xl:grid-cols-4' : '')}
-        aria-label="Pipeline stages"
-      >
-        {job.stages.map((st) => (
-          <li
-            key={st.stage}
-            className={cn(
-              'flex gap-3 rounded-lg px-2 py-2',
-              st.status === 'running' && 'bg-sky-50',
-              st.status === 'failed' && 'bg-rose-50',
-            )}
-          >
-            <div className="pt-0.5">
-              <StageIcon status={st.status} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <p className="text-sm font-medium text-slate-900">
-                  {STAGE_LABELS[st.stage]} <span className="sr-only">— {st.status}</span>
-                </p>
-                <p className="text-xs tabular-nums text-slate-500">
-                  {st.startedAt
-                    ? formatTime(st.startedAt)
-                    : st.status === 'skipped'
-                      ? 'skipped'
-                      : 'pending'}
-                  {st.durationMs !== null && ` · ${formatDuration(st.durationMs)}`}
-                </p>
-              </div>
-              {st.detail && <p className="mt-0.5 text-xs text-slate-600">{st.detail}</p>}
-              {st.errorMessage && (
-                <p className="mt-1 text-xs font-medium text-rose-700">
-                  {st.errorCode}: {st.errorMessage}
-                </p>
-              )}
-            </div>
-          </li>
-        ))}
-      </ol>
+      <StageList job={job} compact={compact} className="mt-4" />
       {notes.length > 0 && !compact && (
         <details className="mt-3 text-xs text-slate-600">
           <summary className="cursor-pointer select-none">Live log ({notes.length})</summary>
@@ -130,5 +92,129 @@ export function PipelineTimeline({
         </details>
       )}
     </Card>
+  );
+}
+
+/** One row per stage: status icon, time and duration, detail, and the error of a failed stage. */
+function StageList({
+  job,
+  compact,
+  className,
+}: {
+  job: JobDto;
+  compact?: boolean | undefined;
+  className?: string;
+}) {
+  return (
+    <ol
+      className={cn('grid gap-1', compact && 'sm:grid-cols-2 xl:grid-cols-4', className)}
+      aria-label="Pipeline stages"
+    >
+      {job.stages.map((st) => (
+        <li
+          key={st.stage}
+          className={cn(
+            'flex gap-3 rounded-lg px-2 py-2',
+            st.status === 'running' && 'bg-sky-50',
+            st.status === 'failed' && 'bg-rose-50',
+          )}
+        >
+          <div className="pt-0.5">
+            <StageIcon status={st.status} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+              <p className="text-sm font-medium text-slate-900">
+                {STAGE_LABELS[st.stage]} <span className="sr-only">— {st.status}</span>
+              </p>
+              <p className="text-xs tabular-nums text-slate-500">
+                {st.startedAt
+                  ? formatTime(st.startedAt)
+                  : st.status === 'skipped'
+                    ? 'skipped'
+                    : 'pending'}
+                {st.durationMs !== null && ` · ${formatDuration(st.durationMs)}`}
+              </p>
+            </div>
+            {st.detail && <p className="mt-0.5 text-xs text-slate-600">{st.detail}</p>}
+            {st.errorMessage && (
+              <p className="mt-1 text-xs font-medium text-rose-700">
+                {st.errorCode}: {st.errorMessage}
+              </p>
+            )}
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/**
+ * Finished pipeline (completed or failed) as a collapsible summary: status, stages done, total
+ * time and model usage in the header; the stage list expands below. A failed pipeline opens by
+ * default so the failing stage and its error are visible.
+ */
+export function PipelineAccordion({ job }: { job: JobDto }) {
+  const failed = job.status === 'failed';
+  const [open, setOpen] = useState(failed);
+  const bodyId = useId();
+  const done = job.stages.filter((st) => st.status === 'completed').length;
+  const failedStage = job.stages.find((st) => st.status === 'failed');
+  const totalMs = job.stages.reduce((n, st) => n + (st.durationMs ?? 0), 0);
+  return (
+    <section
+      className={cn(
+        'rounded-xl border bg-white text-sm',
+        failed ? 'border-rose-200' : 'border-slate-200',
+      )}
+      aria-label="Processing pipeline"
+    >
+      <h2>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors hover:bg-slate-50"
+        >
+          <StageIcon status={failed ? 'failed' : 'completed'} />
+          <span className="min-w-0 flex-1">
+            <span className="font-medium text-slate-900">
+              {failed
+                ? `Pipeline failed${failedStage ? ` at ${STAGE_LABELS[failedStage.stage]}` : ''}`
+                : 'Pipeline completed'}
+            </span>
+            {/* The separator sits between the spans so the accessible name keeps its spaces. */}
+            {' — '}
+            <span className="text-slate-600">
+              {done}/{job.stages.length} stages
+              {totalMs > 0 && ` in ${formatDuration(totalMs)}`}
+              {formatUsage(job.llmUsage, job.llmProvider)}
+            </span>
+          </span>
+          <ChevronDown
+            className={cn(
+              'h-4 w-4 shrink-0 text-slate-500 transition-transform duration-200 motion-reduce:transition-none',
+              open && 'rotate-180',
+            )}
+            aria-hidden
+          />
+        </button>
+      </h2>
+      {/* Height animates via grid rows (0fr → 1fr); collapsed content is inert (not focusable). */}
+      <div
+        id={bodyId}
+        className={cn(
+          'grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none',
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+        )}
+        inert={!open}
+        aria-hidden={!open || undefined}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <StageList job={job} compact className="border-t border-slate-100 px-2 py-3" />
+        </div>
+      </div>
+    </section>
   );
 }

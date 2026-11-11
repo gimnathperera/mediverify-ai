@@ -41,8 +41,21 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'primary_document_medical.pdf',
     );
-    expect(screen.getByText(/pipeline completed — 8\/8 stages/i)).toBeInTheDocument();
     expect(document.title).toBe('primary_document_medical.pdf · MediVerify AI');
+  });
+
+  it('summarises a finished pipeline in a collapsed accordion that expands to the stages', async () => {
+    const { user } = open();
+    const header = await screen.findByRole('button', { name: /pipeline completed — 8\/8 stages/i });
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    // Collapsed content is inert: present for the animation, hidden from assistive tech.
+    expect(screen.queryByRole('list', { name: /pipeline stages/i })).not.toBeInTheDocument();
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    const stages = screen.getByRole('list', { name: /pipeline stages/i });
+    expect(within(stages).getAllByRole('listitem')).toHaveLength(8);
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('shows a citation from the results in the document viewer', async () => {
@@ -78,6 +91,10 @@ describe('DocumentPage', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/processing failed/i);
     expect(alert).toHaveTextContent(/no remaining API credit/i);
+    // A failed pipeline opens by default, naming the failed stage and showing its error.
+    const header = screen.getByRole('button', { name: /pipeline failed at/i });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(header).toHaveAccessibleName(/\d\/8 stages/);
     const timeline = screen.getByRole('list', { name: /pipeline stages/i });
     expect(within(timeline).getByText(/MODEL_QUOTA_EXCEEDED/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /retry/i }));
@@ -144,5 +161,29 @@ describe('DocumentPage', () => {
     expect(await screen.findByText(/live updates unavailable/i)).toBeInTheDocument();
     // A new stream is opened after a short backoff (no page refresh needed).
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2), { timeout: 3000 });
+  });
+
+  it('shows what a failed job completed, labelled as partial', async () => {
+    server.use(
+      http.get('/api/jobs/:id', () =>
+        HttpResponse.json(failedJob('MODEL_UNAVAILABLE', 'Model provider unavailable')),
+      ),
+    );
+    open();
+    expect(await screen.findByText('Partial results')).toBeInTheDocument();
+    expect(screen.getByText(/processing stopped at summarized/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+  });
+
+  it('on small screens, moves focus to the document and back to the quote link', async () => {
+    const { user } = open();
+    await screen.findByRole('heading', { name: 'Summary' });
+    await user.click(screen.getByRole('tab', { name: /medications/i }));
+    const link = screen.getByRole('button', { name: /show pravoxil prescription/i });
+    await user.click(link);
+    expect(screen.getByRole('tab', { name: 'Document' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(screen.getByRole('tabpanel', { name: 'Document' })).toHaveFocus());
+    await user.click(screen.getByRole('button', { name: /back to results/i }));
+    await waitFor(() => expect(link).toHaveFocus());
   });
 });

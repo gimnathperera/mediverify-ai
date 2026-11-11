@@ -1,7 +1,7 @@
 # RAG evaluation
 
 Reproduce with `pnpm eval` (fixture LLM) or `pnpm eval:live` (OpenAI; needs `OPENAI_API_KEY`). Each run writes
-JSON with `--out <file>`. CI runs the fixture evaluation on every push and keeps `eval-report.json` as an artifact.
+JSON with `--out <file>`. CI runs the fixture evaluation on every pull request and push to `main`, and keeps `eval-report.json` as an artifact.
 **The numbers below were measured, not estimated.** Each section says which LLM mode produced it.
 
 ## Evaluation set
@@ -15,7 +15,7 @@ JSON with `--out <file>`. CI runs the fixture evaluation on every push and keeps
 | Distractor monographs    | Mirosartan, Sumavast, Floranase: must never appear in findings                                                                         |
 | Expected evidence fields | Per finding: e.g. Pravoxil timing → `Prescribing notes` / `Standard adult dose`; Etrazolam duration → `Prescribing notes`              |
 
-## Results: run of 2026-11-09 (LLM = **fixture**, embeddings = `Xenova/bge-small-en-v1.5`, K = 6)
+## Results: run of 2026-11-11 (LLM = **fixture**, embeddings = `Xenova/bge-small-en-v1.5`, K = 6)
 
 Retrieval and the identity gate do not depend on the LLM, so sections 1–3 are real measurements. In section 4,
 the extraction/summary/verifier text comes from **hand-authored fixtures**. Parsing, table reconciliation, retrieval,
@@ -49,24 +49,41 @@ and similarity is only shown to the user as "similar name, not matched".
 
 ### 3. Targeted hybrid retrieval inside the matched monograph
 
-0.7·cosine + 0.3·full-text rank, over that monograph's field chunks only.
+The current retrieval runs one query per prescribing aspect over that monograph's field chunks only. Each query is
+ranked by cosine and by full-text rank, and the rankings are fused with Reciprocal Rank Fusion (details below).
 
 | Drug        | Expected evidence field(s)                         | Rank of evidence among top-6 | Recall@3  | Recall@6  |
 | ----------- | -------------------------------------------------- | ---------------------------- | --------- | --------- |
-| Velantine   | Standard adult dose                                | 1                            | 1.00      | 1.00      |
-| Cordizem-XR | Standard adult dose                                | 1                            | 1.00      | 1.00      |
-| Pravoxil    | Prescribing notes, Standard adult dose             | 4, 1                         | 0.50      | 1.00      |
-| Etrazolam   | Prescribing notes                                  | 3                            | 1.00      | 1.00      |
-| Quintaxin   | Standard adult dose, Prescribing notes, Monitoring | 1, 3, 4                      | 0.67      | 1.00      |
-| **Mean**    |                                                    |                              | **0.833** | **1.000** |
+| Velantine   | Standard adult dose                                | 2                            | 1.00      | 1.00      |
+| Cordizem-XR | Standard adult dose                                | 3                            | 1.00      | 1.00      |
+| Pravoxil    | Prescribing notes, Standard adult dose             | 2, 1                         | 1.00      | 1.00      |
+| Etrazolam   | Prescribing notes                                  | 1                            | 1.00      | 1.00      |
+| Quintaxin   | Standard adult dose, Prescribing notes, Monitoring | 2, 1, 4                      | 0.67      | 1.00      |
+| **Mean**    |                                                    |                              | **0.933** | **1.000** |
 
-Every retrieved passage belonged to the matched monograph (no cross-monograph leakage). This is why K = 6 is the
-default: K = 3 would miss Pravoxil's "not in the morning" note. Deterministic checks also add the evidence field
-they rely on to the LLM's passages, so a ranking miss can't hide a constraint.
+**Raw retrieval vs final evidence.** The table above is the ranking alone: Recall@K counts only the top K ranked
+chunks. Two later steps add passages without ranking them: the Contraindications field is always appended, and every
+field a deterministic rule cites is added (`evidencePassages`, shared by the pipeline and the eval). The eval reports
+the coverage of those final passages separately, so the ranking metric is never inflated by them:
+
+| Measure                                                                                   | Mean          |
+| ----------------------------------------------------------------------------------------- | ------------- |
+| Recall@3 / Recall@6, ranking only                                                         | 0.933 / 1.000 |
+| Final evidence coverage (relevance gate + appended Contraindications + rule-cited fields) | **1.000**     |
+| Expected fields that came only from the post-ranking additions                            | **0**         |
+
+On this sample the additions supplied no expected field (they appended only Cordizem-XR's Contraindications), so all
+evidence the verdicts depend on was found by the ranking itself. On a longer or differently worded formulary the two
+numbers can diverge; then the gap shows how much the deterministic safety net, rather than retrieval, is carrying.
+
+Every retrieved passage belonged to the matched monograph (no cross-monograph leakage). K = 6 is the default because
+K = 3 would miss Quintaxin's Monitoring field (rank 4). Deterministic checks also add the evidence field they rely on
+to the LLM's passages, so a ranking miss can't hide a constraint.
 
 #### Retrieval ablation (2026-11-11) — and why the weighting was replaced
 
-The table above is the original `0.7·cosine + 0.3·ts_rank` mix with one long query. Checked against the stored
+The original retrieval was a `0.7·cosine + 0.3·ts_rank` mix with one long query. It ranked Pravoxil's
+"not in the morning" note 4th (Recall@3 0.50) and had a mean Recall@3 of 0.833. Checked against the stored
 queries, its full-text half did not work as intended: `websearch_to_tsquery` ANDs all ~25 query terms, so **no field
 chunk matched** (0 of 18 checked), and the partial `ts_rank` scores, multiplied by 10 and capped at 1, gave five of
 Etrazolam's nine fields the same lexical score while ranking Pravoxil's Contraindications above the Prescribing notes
@@ -97,6 +114,49 @@ exact terms ("contraindicated", "bedtime") matter. End-to-end results were uncha
 | Critical-point quotes validated against the primary document                                     | **100%** (14 points)                                                                                             |
 | Psychiatry follow-up discrepancy preserved (critical point / summary)                            | **yes / yes**                                                                                                    |
 | Findings citing distractor monographs                                                            | **0**                                                                                                            |
+
+### 5. Robustness beyond the one sample (2026-11-11)
+
+One golden document can't show how the checks behave on other prescriptions, or with a misbehaving model. `pnpm eval`
+(section 5) and `tests/integration/robustness.test.ts` share one runner (`scripts/lib/robustness.ts`). It runs three
+checks against the real indexed formulary. The model is **scripted**, so the numbers are the same in fixture and live mode.
+
+**Prescription perturbations** (`fixtures/robustness.json`, test-only): 14 extractions as a model might return them
+from other discharge summaries. They are verified with a model that takes no position, so each outcome comes from
+parsing, identity, retrieval and the deterministic rules alone. Result: **14 / 14 as expected.**
+
+| Case                                                  | Expected → measured                          |
+| ----------------------------------------------------- | -------------------------------------------- |
+| "Velantine 10 mg tablet", "once-daily"                | Supported (strength/form stripped from name) |
+| "Pravoxil (simvastatin)" 20 mg at bedtime             | Supported (generic in brackets)              |
+| Velantine "0.01 g"                                    | Supported (g → mg)                           |
+| Velantine "1,000 mg"                                  | Contradicted [dose]                          |
+| Pravoxil "twice-daily"                                | Contradicted [frequency]                     |
+| Pravoxil "in the morning" (monograph forbids morning) | Contradicted [timing]                        |
+| Etrazolam "21 days" / "6 weeks" (limit 4 weeks)       | Supported / Contradicted [duration]          |
+| Quintaxin "in the morning" (rule: before breakfast)   | Incomplete [timing: meal relation unstated]  |
+| Cordizem-XR 100 mg, new start unknown                 | Incomplete [dose]                            |
+| Cordizem-XR "50-100 mg" (range never collapsed)       | Incomplete [dose, unit]                      |
+| Velantine "5 mL" (no mg conversion)                   | Incomplete [dose, unit]                      |
+| Velantine "as needed" (scheduled regimen)             | Incomplete [frequency]                       |
+| "Velantina" (look-alike)                              | Unsupported                                  |
+
+**Adversarial model** (as if a prompt injection had succeeded): the six golden extractions are verified by a model
+that answers every field the same way and backs it with a fabricated quote.
+
+| Model behaviour                     | Model claims | Fabricated claims accepted | Real contradictions kept | New contradictions | Supported on fabrication |
+| ----------------------------------- | ------------ | -------------------------- | ------------------------ | ------------------ | ------------------------ |
+| "yes-man": every field consistent   | 22           | **0**                      | 3 / 3                    | 0                  | 0                        |
+| "alarmist": every field in conflict | 13           | **0**                      | 3 / 3                    | 0                  | 0                        |
+
+With either model, Velantine and Quintaxin drop from Supported to **Incomplete**. The rejected claims become
+`unverified` gaps rather than flipping the status either way. A lying model costs coverage, not correctness.
+
+**Injected extraction**: a medication the model "extracts" that is not in the document (`Zentrovax 5 mg`) is
+**dropped** by table reconciliation.
+
+What this does not cover: other document layouts (the parser is only exercised on the sample PDF and DOCX), other
+formularies, and real-model variance on new documents. Those need more labelled documents.
 
 ## Live-model runs (2026-11-10, LLM = **OpenAI `gpt-5.4-mini`**, reasoning effort `low`)
 
@@ -132,6 +192,13 @@ applicability, validated new-start evidence, the extended summary guard). Report
 | Non-decisive findings                             | all `not_constrained` (the monograph sets no rule) — none `not_stated` / insufficient / rejected |
 | Model usage recorded on the job                   | **8 calls, 18,318 tokens** (11,797 prompt + 6,521 completion); cost not computed (no prices set) |
 | Wall time                                         | 27.6 s                                                                                           |
+
+### Live run through the app (2026-11-11)
+
+The sample uploaded through the UI with the stack in live mode (screenshot in the README): **6 / 6** statuses with
+the exact conflict fields (Cordizem-XR dose, Pravoxil timing, Etrazolam duration), **30 / 30** citations and **14 / 14**
+critical-point quotes validated, the psychiatry discrepancy kept as a cited critical point and in the summary, 0
+summary-guard warnings, **8 model calls, 18,219 tokens**, 30.3 s.
 
 Quintaxin, which one earlier run flagged as an indication conflict, stays Supported by design: the model judged the
 indication "not addressed", which the status rules read as "no rule in the formulary" rather than a conflict.
