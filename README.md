@@ -39,15 +39,9 @@ Fixture mode exists so anyone can run the demo without a key and CI stays determ
 model outputs for the bundled sample only and is labelled in the UI and on every result. The real pipeline has been
 run end to end with OpenAI `gpt-5.4-mini` (details and history in [docs/evaluation.md](docs/evaluation.md#live-model-runs-2026-11-10-llm--openai-gpt-54-mini-reasoning-effort-low)):
 
-| Live run                                 | Statuses   | Conflict fields | Citations valid | Critical-point quotes | Usage                            |
-| ---------------------------------------- | ---------- | --------------- | --------------- | --------------------- | -------------------------------- |
-| Through the app, 2026-11-11 (screenshot) | 6 / 6      | 3 / 3 exact     | 30 / 30         | 14 / 14               | 8 calls · 18,219 tokens · 30.3 s |
-| `pnpm eval:live`, 2026-11-11             | 6 / 6      | P / R 100%      | 100%            | 100%                  | 8 calls · 18,318 tokens · 27.6 s |
-| 8 × `pnpm eval:live`, 2026-11-10         | 7 / 8 runs |                 | 100% every run  |                       | about US$0.06 per run            |
-
-The one miss in the eight 2026-11-10 runs was an indication false positive, since guarded in code. Both
-2026-11-11 runs also kept the document's internal discrepancy (psychiatry follow-up in two weeks vs at 8 weeks)
-in the summary and as a cited critical point, with no summary-guard warnings.
+| Live run                     | Statuses | Conflict fields | Citations valid | Critical-point quotes | Usage                            |
+| ---------------------------- | -------- | --------------- | --------------- | --------------------- | -------------------------------- |
+| `pnpm eval:live`, 2026-11-11 | 6 / 6    | P / R 100%      | 100%            | 100%                  | 8 calls · 18,318 tokens · 27.6 s |
 
 ![A real-model result: no fixture banner, the summary is labelled "openai · gpt-5.4-mini", and the pipeline header shows 8 model calls and 18,219 tokens; Cordizem-XR, Pravoxil and Etrazolam are contradicted](docs/screenshots/live-result.png)
 
@@ -677,14 +671,6 @@ before the component tests; the thresholds in `vitest.config.ts` were raised to 
 - `release.yml` builds images on `v*` tags and pushes to GHCR only when the `PUBLISH_IMAGES` variable is enabled.
 - Dependabot is configured for npm, Actions and Docker.
 
-> **Status (2026-11-11):** GitHub Actions passes on `main` (after PR #20). That covers format, lint, typecheck and
-> bundle budget; unit, web and integration tests with coverage thresholds; the dependency audit and secret scan; and
-> the Compose build with Playwright E2E (smoke + accessibility, desktop + Pixel 7, fixture mode). Locally: 78 unit,
-> 87 web, 58 integration and 6 Playwright tests pass. That count includes the robustness evaluation, partial results
-> and the DOCX zip-bomb guard, which are newer than the last `main` CI run. The live OpenAI evaluation ran locally
-> (`pnpm eval:live`; last run 2026-11-11, after the hardening sprint). The manual `eval-live` CI job needs an
-> `OPENAI_API_KEY` repository secret and has not run in CI.
-
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
 ---
@@ -707,10 +693,6 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start, which the
   extractor must back with a quote that validates in the document. Without one, the dose is "insufficient evidence"
   and the medication Incomplete — never a guessed conflict.
-- **Indication checks are LLM-only** (semantic). A model-only indication conflict counts only when the cited text
-  excludes or restricts the use _and_ the excluded condition is documented for this patient. The applicability check
-  is lexical (terms of the excluded condition must appear in the discharge document), so a condition described in
-  different words reads as "insufficient evidence" (Incomplete), not as a conflict.
 - **Parsing limits.** No OCR, so scanned PDFs fail with `PARSE_FAILED`. Rotated tables and tables without a first
   column per row are not handled.
 - **Monograph rule parsing** uses patterns fitted to this digest's phrasing. A differently worded formulary would need
