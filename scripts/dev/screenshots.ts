@@ -22,14 +22,10 @@ await page.getByLabel('Password').fill(PASSWORD);
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.waitForURL(/\/documents$/);
 
-const docs = (await (await page.request.get(`${BASE}/api/documents`)).json()) as Array<{
-  id: string;
-  filename: string;
-  latestJob: { status: string } | null;
-}>;
-const done = docs.find(
-  (d) => d.latestJob?.status === 'completed' && d.filename === 'primary_document_medical.pdf',
-);
+const list = (await (
+  await page.request.get(`${BASE}/api/documents?status=completed&q=primary_document_medical`)
+).json()) as { items: { id: string; filename: string }[] };
+const done = list.items.find((d) => d.filename === 'primary_document_medical.pdf');
 if (!done) throw new Error('No completed primary_document_medical.pdf — upload it first');
 
 await page.waitForTimeout(500);

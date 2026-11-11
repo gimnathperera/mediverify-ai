@@ -89,10 +89,12 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-11): 78 unit + 71 web + 58 integration + 6 Playwright pass locally (coverage 86%); the hardening
-  sprint (migration 0002, RRF retrieval, status reasons, limits/cancellation/usage, pagination, delete, retention) and
-  the follow-up (robustness eval, partial results, zip-bomb guard) have not run in GitHub Actions yet; a post-sprint live eval (gpt-5.4-mini) passed 6/6 with 18k tokens recorded;
-  live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
+- Status (2026-11-11): 78 unit + 71 web + 58 integration + 6 Playwright pass locally (coverage 86%). GitHub Actions
+  passed on `main` after PR #20 (the hardening sprint: migration 0002, RRF retrieval, status reasons, limits,
+  cancellation, usage, pagination, delete, retention). The follow-up on `chore/result-optimizations` (robustness eval,
+  partial results, zip-bomb guard, removed `mammoth`/npm `pgvector`) has not run in CI yet. The post-sprint live eval
+  (`gpt-5.4-mini`, local) passed 6/6 statuses with 100% citations and 18k tokens recorded; results are in
+  `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
 - `LocalEmbeddingProvider` retries the first model download and never caches a failed load.

@@ -1,7 +1,7 @@
 # RAG evaluation
 
 Reproduce with `pnpm eval` (fixture LLM) or `pnpm eval:live` (OpenAI; needs `OPENAI_API_KEY`). Each run writes
-JSON with `--out <file>`. CI runs the fixture evaluation on every push and keeps `eval-report.json` as an artifact.
+JSON with `--out <file>`. CI runs the fixture evaluation on every pull request and push to `main`, and keeps `eval-report.json` as an artifact.
 **The numbers below were measured, not estimated.** Each section says which LLM mode produced it.
 
 ## Evaluation set
@@ -15,7 +15,7 @@ JSON with `--out <file>`. CI runs the fixture evaluation on every push and keeps
 | Distractor monographs    | Mirosartan, Sumavast, Floranase: must never appear in findings                                                                         |
 | Expected evidence fields | Per finding: e.g. Pravoxil timing → `Prescribing notes` / `Standard adult dose`; Etrazolam duration → `Prescribing notes`              |
 
-## Results: run of 2026-11-09 (LLM = **fixture**, embeddings = `Xenova/bge-small-en-v1.5`, K = 6)
+## Results: run of 2026-11-11 (LLM = **fixture**, embeddings = `Xenova/bge-small-en-v1.5`, K = 6)
 
 Retrieval and the identity gate do not depend on the LLM, so sections 1–3 are real measurements. In section 4,
 the extraction/summary/verifier text comes from **hand-authored fixtures**. Parsing, table reconciliation, retrieval,
@@ -49,24 +49,26 @@ and similarity is only shown to the user as "similar name, not matched".
 
 ### 3. Targeted hybrid retrieval inside the matched monograph
 
-0.7·cosine + 0.3·full-text rank, over that monograph's field chunks only.
+The current retrieval runs one query per prescribing aspect over that monograph's field chunks only. Each query is
+ranked by cosine and by full-text rank, and the rankings are fused with Reciprocal Rank Fusion (details below).
 
 | Drug        | Expected evidence field(s)                         | Rank of evidence among top-6 | Recall@3  | Recall@6  |
 | ----------- | -------------------------------------------------- | ---------------------------- | --------- | --------- |
-| Velantine   | Standard adult dose                                | 1                            | 1.00      | 1.00      |
-| Cordizem-XR | Standard adult dose                                | 1                            | 1.00      | 1.00      |
-| Pravoxil    | Prescribing notes, Standard adult dose             | 4, 1                         | 0.50      | 1.00      |
-| Etrazolam   | Prescribing notes                                  | 3                            | 1.00      | 1.00      |
-| Quintaxin   | Standard adult dose, Prescribing notes, Monitoring | 1, 3, 4                      | 0.67      | 1.00      |
-| **Mean**    |                                                    |                              | **0.833** | **1.000** |
+| Velantine   | Standard adult dose                                | 2                            | 1.00      | 1.00      |
+| Cordizem-XR | Standard adult dose                                | 3                            | 1.00      | 1.00      |
+| Pravoxil    | Prescribing notes, Standard adult dose             | 2, 1                         | 1.00      | 1.00      |
+| Etrazolam   | Prescribing notes                                  | 1                            | 1.00      | 1.00      |
+| Quintaxin   | Standard adult dose, Prescribing notes, Monitoring | 2, 1, 4                      | 0.67      | 1.00      |
+| **Mean**    |                                                    |                              | **0.933** | **1.000** |
 
-Every retrieved passage belonged to the matched monograph (no cross-monograph leakage). This is why K = 6 is the
-default: K = 3 would miss Pravoxil's "not in the morning" note. Deterministic checks also add the evidence field
-they rely on to the LLM's passages, so a ranking miss can't hide a constraint.
+Every retrieved passage belonged to the matched monograph (no cross-monograph leakage). K = 6 is the default because
+K = 3 would miss Quintaxin's Monitoring field (rank 4). Deterministic checks also add the evidence field they rely on
+to the LLM's passages, so a ranking miss can't hide a constraint.
 
 #### Retrieval ablation (2026-11-11) — and why the weighting was replaced
 
-The table above is the original `0.7·cosine + 0.3·ts_rank` mix with one long query. Checked against the stored
+The original retrieval was a `0.7·cosine + 0.3·ts_rank` mix with one long query. It ranked Pravoxil's
+"not in the morning" note 4th (Recall@3 0.50) and had a mean Recall@3 of 0.833. Checked against the stored
 queries, its full-text half did not work as intended: `websearch_to_tsquery` ANDs all ~25 query terms, so **no field
 chunk matched** (0 of 18 checked), and the partial `ts_rank` scores, multiplied by 10 and capped at 1, gave five of
 Etrazolam's nine fields the same lexical score while ranking Pravoxil's Contraindications above the Prescribing notes

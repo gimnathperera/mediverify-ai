@@ -12,14 +12,14 @@ Every verdict comes with verbatim, validated evidence from the reference.
 > **Fictional data, demo only.** The bundled documents are fictional. Nothing here is clinical advice. The UI shows this
 > disclaimer at all times.
 
-![Document view: the discharge summary on the left; summary, verdict counts and per-medication findings on the right](docs/screenshots/document-view.png)
+![Document view: the discharge summary on the left; on the right the summary, then a Needs attention panel listing the contradicted medications with the conflicting field](docs/screenshots/document-view.png)
 
 | Citation with a verified quote                                                                                                                       | Deep link into the formulary                                                                                        |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | ![Citation sheet for Pravoxil timing: monograph, section, field, page and the quote marked as verified in the source](docs/screenshots/citation.png) | ![The reference PDF opened at page 5 with the cited sentence highlighted](docs/screenshots/reference-deep-link.png) |
 
-Screenshots are from fixture mode (see the banner); [`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts)
-recaptures them from a running stack.
+Screenshots are from fixture mode (see the banner), taken 2026-11-11.
+[`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts) recaptures them from a running stack.
 
 ---
 
@@ -86,20 +86,24 @@ ChatGPT subscription; consider a monthly usage limit), then _API keys → Create
 
 ### Configuration
 
-All settings are environment variables with safe defaults; [.env.example](.env.example) lists them with comments.
+All settings are environment variables with safe defaults. [.env.example](.env.example) lists every one with
+comments, including the queue timings and development settings under "Advanced".
 
-| Setting                                            | Default                       | Purpose                                                                                           |
-| -------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------- |
-| `LLM_PROVIDER` / `OPENAI_API_KEY` / `OPENAI_MODEL` | `openai` / – / `gpt-5.4-mini` | Model provider (`fixture` for the key-less demo)                                                  |
-| `LLM_TIMEOUT_MS` / `LLM_MAX_RETRIES`               | `90000` / `3`                 | Per-call timeout; retries for 429 rate limits, 5xx and network errors                             |
-| `ALLOW_SIGNUP`                                     | `true`                        | Set `false` for a hosted demo on a paid key; seed users still sign in                             |
-| `DAILY_JOB_LIMIT`                                  | `20`                          | Pipeline runs (uploads + retries) per user per rolling 24 h; `0` = unlimited. Duplicates are free |
-| `COOKIE_SECURE`                                    | `false`                       | Set `true` behind HTTPS                                                                           |
-| `DUPLICATE_WINDOW_SECONDS`                         | `300`                         | Duplicate-upload window; `0` disables                                                             |
-| `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE`          | `6` / `0.35`                  | Passages retrieved per medication and the relevance floor (below it → `incomplete`)               |
-| `VERIFY_CONCURRENCY`                               | `3`                           | Medications verified in parallel per job                                                          |
-| `WORKER_CONCURRENCY`                               | `1`                           | Jobs per worker container; scale out with `docker compose up --scale worker=N`                    |
-| `STAGE_TIMEOUT_MS` / `JOB_MAX_ATTEMPTS`            | `180000` / `3`                | Per-stage limit; attempts before a job is marked failed                                           |
+| Setting                                            | Default                   | Purpose                                                                                           |
+| -------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
+| `LLM_PROVIDER` / `OPENAI_API_KEY` / `OPENAI_MODEL` | auto / – / `gpt-5.4-mini` | Model provider. Empty = `openai` when a key is set, otherwise `fixture` (the key-less demo)       |
+| `LLM_TIMEOUT_MS` / `LLM_MAX_RETRIES`               | `90000` / `3`             | Per-call timeout; retries for 429 rate limits, 5xx and network errors                             |
+| `ALLOW_SIGNUP`                                     | auto                      | Empty = on in fixture mode, off when a paid OpenAI key is set; seed users always sign in          |
+| `DAILY_JOB_LIMIT`                                  | `20`                      | Pipeline runs (uploads + retries) per user per rolling 24 h; `0` = unlimited. Duplicates are free |
+| `GLOBAL_DAILY_JOB_LIMIT`                           | `200`                     | Pipeline runs across all users per rolling 24 h (spend cap); `0` = unlimited                      |
+| `MAX_DOCUMENT_PAGES` / `MAX_DOCUMENT_CHARS`        | `50` / `150000`           | Input limits checked after parsing (`DOCUMENT_TOO_LARGE`); `LLM_MAX_PROMPT_TOKENS` caps prompts   |
+| `EVENT_RETENTION_DAYS` / `DOCUMENT_RETENTION_DAYS` | `30` / `0`                | Purge progress events of finished jobs / whole documents (`0` = keep forever)                     |
+| `COOKIE_SECURE`                                    | `false`                   | Set `true` behind HTTPS                                                                           |
+| `DUPLICATE_WINDOW_SECONDS`                         | `300`                     | Duplicate-upload window; `0` disables                                                             |
+| `RETRIEVAL_TOP_K` / `RETRIEVAL_MIN_SCORE`          | `6` / `0.35`              | Passages retrieved per medication and the relevance floor (below it → `incomplete`)               |
+| `VERIFY_CONCURRENCY`                               | `3`                       | Medications verified in parallel per job                                                          |
+| `WORKER_CONCURRENCY`                               | `1`                       | Jobs per worker container; scale out with `docker compose up --scale worker=N`                    |
+| `STAGE_TIMEOUT_MS` / `JOB_MAX_ATTEMPTS`            | `180000` / `3`            | Per-stage limit; attempts before a job is marked failed                                           |
 
 ---
 
@@ -184,8 +188,12 @@ flowchart LR
 apps/api         NestJS HTTP API + SSE            apps/worker       job runner
 apps/web         React 19 + Vite 7 + Tailwind 4   packages/shared   zod DTOs, enums, error codes
 packages/db      pool, tx helper, migrator, repos packages/core     parsing, chunking, rules, LLM/embeddings, verification, pipeline
-db/migrations    versioned forward-only SQL        fixtures/         golden expectations (tests only), fixture LLM outputs, DOCX sample
-tests/           integration, e2e, helpers         docs/             evaluation.md, implementation-plan.md
+db/migrations    versioned forward-only SQL        fixtures/         golden + robustness cases (tests only), fixture LLM outputs, DOCX sample
+tests/           unit, integration, e2e, helpers   docs/             evaluation.md, implementation-plan.md, screenshots
+scripts/         migrate, seed, eval (+ lib/robustness), secret guard, bundle-size check
+scripts/dev/     developer helpers, run with `pnpm exec tsx --conditions=@mediverify/source scripts/dev/<file>`:
+                 make-docx (regenerates fixtures/sample_discharge.docx), screenshots (README images),
+                 parse-probe <pdf> (parsed blocks), rules-probe (monograph rules), index-reference (re-index)
 ```
 
 ### Data model
@@ -444,22 +452,22 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 
 **API error codes:**
 
-| Code                     | Meaning                                 |
-| ------------------------ | --------------------------------------- |
-| `VALIDATION_FAILED`      | 400                                     |
-| `UNAUTHENTICATED`        | 401                                     |
-| `FORBIDDEN_ORIGIN`       | 403 (CSRF)                              |
-| `INVALID_CREDENTIALS`    | 401                                     |
-| `EMAIL_TAKEN`            | 409                                     |
-| `NOT_FOUND`              | 404, including _other users' resources_ |
-| `UNSUPPORTED_MEDIA_TYPE` | 415                                     |
-| `PAYLOAD_TOO_LARGE`      | 413 (10 MB)                             |
-| `REFERENCE_NOT_FOUND`    | 404                                     |
-| `JOB_NOT_RETRYABLE`      | 409                                     |
-| `RATE_LIMITED`           | 429                                     |
-| `QUOTA_EXCEEDED`         | 429 (per-user or app-wide daily budget) |
-| `SIGNUP_DISABLED`        | 403                                     |
-| `INTERNAL`               | 500 (sanitized)                         |
+| Code                     | Meaning                                         |
+| ------------------------ | ----------------------------------------------- |
+| `VALIDATION_FAILED`      | 400                                             |
+| `UNAUTHENTICATED`        | 401                                             |
+| `FORBIDDEN_ORIGIN`       | 403 (CSRF)                                      |
+| `INVALID_CREDENTIALS`    | 401                                             |
+| `EMAIL_TAKEN`            | 409                                             |
+| `NOT_FOUND`              | 404, including _other users' resources_         |
+| `UNSUPPORTED_MEDIA_TYPE` | 415                                             |
+| `PAYLOAD_TOO_LARGE`      | 413 (over 10 MB, or a DOCX over 50 MB unpacked) |
+| `REFERENCE_NOT_FOUND`    | 404                                             |
+| `JOB_NOT_RETRYABLE`      | 409                                             |
+| `RATE_LIMITED`           | 429                                             |
+| `QUOTA_EXCEEDED`         | 429 (per-user or app-wide daily budget)         |
+| `SIGNUP_DISABLED`        | 403                                             |
+| `INTERNAL`               | 500 (sanitized)                                 |
 
 **Pipeline error codes** (shown on stages and jobs):
 
@@ -586,11 +594,13 @@ before the component tests; the thresholds in `vitest.config.ts` were raised to 
 - `release.yml` builds images on `v*` tags and pushes to GHCR only when the `PUBLISH_IMAGES` variable is enabled.
 - Dependabot is configured for npm, Actions and Docker.
 
-> **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally (2026-11-11): 78 unit, 71 web, 58 integration and
-> 6 Playwright tests (smoke + accessibility, desktop + Pixel 7) pass, with coverage thresholds enforced. The new web
-> tests, accessibility scan and bundle budget have not run in GitHub Actions yet. Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
-> the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.
+> **Status (2026-11-11):** GitHub Actions passes on `main` (after PR #20). That covers format, lint, typecheck and
+> bundle budget; unit, web and integration tests with coverage thresholds; the dependency audit and secret scan; and
+> the Compose build with Playwright E2E (smoke + accessibility, desktop + Pixel 7, fixture mode). Locally: 78 unit,
+> 71 web, 58 integration and 6 Playwright tests pass. That count includes the robustness evaluation, partial results
+> and the DOCX zip-bomb guard, which are newer than the last `main` CI run. The live OpenAI evaluation ran locally
+> (`pnpm eval:live`; last run 2026-11-11, after the hardening sprint). The manual `eval-live` CI job needs an
+> `OPENAI_API_KEY` repository secret and has not run in CI.
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
@@ -607,9 +617,10 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 
 ## Trade-offs and known limitations
 
-- **Small live evaluation set.** Live numbers come from one document (8 full runs plus targeted runs). Model output
-  varies between runs; one run in eight produced an indication false positive, which is now guarded in code. A larger
-  synthetic set is the next step.
+- **Small labelled evaluation set.** End-to-end and live numbers come from one document (8 full live runs plus
+  targeted runs). Model output varies between runs; one run in eight produced an indication false positive, which is
+  now guarded in code. The robustness evaluation adds 14 prescription variants, an adversarial model and an injected
+  extraction. These test the checks, not extraction from other layouts. More labelled documents are the next step.
 - **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start, which the
   extractor must back with a quote that validates in the document. Without one, the dose is "insufficient evidence"
   and the medication Incomplete — never a guessed conflict.
@@ -634,7 +645,8 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 
 ## With more time
 
-1. Build a larger synthetic evaluation set (more documents, adversarial look-alikes), and run it live on a schedule.
+1. Label more discharge summaries (other layouts, DOCX originals, more look-alikes) next to the 14 robustness cases,
+   and run the evaluation live on a schedule.
 2. Add metrics (Prometheus or OpenTelemetry) and a shared rate limiter.
 3. Add a reviewer feedback loop: accept or override a finding, with an audit trail.
 4. Add OCR fallback and HNSW indexing for larger corpora.
