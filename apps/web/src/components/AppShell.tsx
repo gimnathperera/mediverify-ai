@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           {me.data && (
             <div className="flex items-center gap-3">
               <span
-                className="hidden max-w-[240px] truncate text-sm text-slate-600 sm:inline"
+                className="hidden max-w-60 truncate text-sm text-slate-600 sm:inline"
                 title={me.data.email}
               >
                 {me.data.email}
