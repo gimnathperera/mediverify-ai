@@ -1,8 +1,8 @@
-import { isTerminalJobStatus } from '@mediverify/shared/client';
+import { isTerminalJobStatus, STAGE_LABELS } from '@mediverify/shared/client';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, FileText, RotateCcw, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { PdfViewer } from '../components/LazyPdfViewer';
@@ -46,6 +46,8 @@ export function DocumentPage() {
   const remove = useDeleteDocument();
   const navigate = useNavigate();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const documentPane = useRef<HTMLDivElement>(null);
+  const returnFocusTo = useRef<HTMLElement | null>(null);
   const [page, setPage] = useState(1);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [pane, setPane] = useState<Pane>('results');
@@ -74,6 +76,33 @@ export function DocumentPage() {
   const canPreview =
     d.mimeType === 'application/pdf' ||
     job.data?.stages.find((s) => s.stage === 'parsed')?.status === 'completed';
+
+  // A failed job keeps what it completed (e.g. summary and extraction before verification failed).
+  const r = results.data;
+  const partial =
+    failed &&
+    r &&
+    Boolean(r.summary || r.criticalPoints.length || r.medications.length || r.verifications.length);
+  const showResults = (done || partial) && r;
+
+  /** Show a quote in the PDF. On small screens that switches panes: move focus with it. */
+  const showQuote = (p: number | null, quote: string) => {
+    if (p) setPage(p);
+    setHighlights([quote]);
+    setPane('document');
+    if (window.matchMedia?.('(min-width: 1024px)').matches) return; // side by side: focus stays
+    returnFocusTo.current = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => {
+      const pane = documentPane.current;
+      (pane?.querySelector<HTMLElement>('[role="region"][tabindex="0"]') ?? pane)?.focus();
+    });
+  };
+  const backToResults = () => {
+    setPane('results');
+    requestAnimationFrame(() => {
+      if (returnFocusTo.current?.isConnected) returnFocusTo.current.focus();
+    });
+  };
 
   const onRetry = () => {
     if (!jobId) return;
@@ -195,10 +224,14 @@ export function DocumentPage() {
         </Tabs.List>
         <div className="grid gap-4 lg:grid-cols-2">
           <Tabs.Content
+            ref={documentPane}
             value="document"
             forceMount
             className="data-[state=inactive]:hidden lg:data-[state=inactive]:block"
           >
+            <Button variant="ghost" size="sm" className="mb-2 lg:hidden" onClick={backToResults}>
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back to results
+            </Button>
             <Card className="h-[75vh] overflow-hidden lg:sticky lg:top-20">
               {canPreview ? (
                 <PdfViewer
@@ -227,16 +260,15 @@ export function DocumentPage() {
                 {results.error.message}
               </Alert>
             )}
-            {done && results.data && (
-              <ResultsView
-                results={results.data}
-                onShowPrimaryQuote={(p, quote) => {
-                  if (p) setPage(p);
-                  setHighlights([quote]);
-                  setPane('document');
-                }}
-              />
+            {partial && (
+              <Alert tone="warning" title="Partial results" className="mb-4">
+                Processing stopped at{' '}
+                {job.data?.currentStage ? STAGE_LABELS[job.data.currentStage] : 'a stage'}. What was
+                completed before the failure is shown below; later sections are empty. Retry to
+                finish.
+              </Alert>
             )}
+            {showResults && <ResultsView results={r} onShowPrimaryQuote={showQuote} />}
             {!done && !failed && (
               <Card className="p-6 text-sm text-slate-600">
                 <Spinner label="Results will appear here when verification completes." />

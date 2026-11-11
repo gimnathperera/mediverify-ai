@@ -422,3 +422,25 @@ describe('SSE job events', () => {
     expect(after.stages.every((s) => s.status === 'completed' && s.durationMs !== null)).toBe(true);
   });
 });
+
+describe('upload safety', () => {
+  it('rejects a DOCX that declares a zip-bomb expansion before anything unpacks it', async () => {
+    const { agent } = await signedInAgent(app, 'zipbomb');
+    // Minimal ZIP whose central directory declares a 4 GB word/document.xml.
+    const name = 'word/document.xml';
+    const cd = Buffer.alloc(46 + name.length);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt32LE(4_000_000_000, 24);
+    cd.writeUInt16LE(name.length, 28);
+    cd.write(name, 46, 'latin1');
+    const eocd = Buffer.alloc(22);
+    eocd.writeUInt32LE(0x06054b50, 0);
+    eocd.writeUInt16LE(1, 8);
+    eocd.writeUInt16LE(1, 10);
+    eocd.writeUInt32LE(cd.length, 12);
+    eocd.writeUInt32LE(4, 16);
+    const bomb = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), cd, eocd]);
+    const res = await upload(agent, bomb, 'discharge.docx').expect(413);
+    expect(res.body.error.code).toBe('PAYLOAD_TOO_LARGE');
+  });
+});

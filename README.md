@@ -372,6 +372,13 @@ failure modes are in [docs/evaluation.md](docs/evaluation.md).
 
 End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
 citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
+A robustness section goes beyond the one sample:
+
+- 14 prescription perturbations (units, separators, ranges, PRN, look-alikes, unstated meal relation and so on), all classified as expected.
+- A scripted adversarial model that confirms or flags everything with fabricated quotes. 0 of its fabricated claims were accepted, and all three real contradictions were kept.
+- An injected extraction of a drug that isn't in the document. It was dropped.
+
+See [docs/evaluation.md](docs/evaluation.md#5-robustness-beyond-the-one-sample-2026-11-11).
 `pnpm eval:live` repeats the run with real OpenAI inference (`gpt-5.4-mini`). The final live run scored the same as
 the fixture run, and also kept the document's internal follow-up discrepancy. The 8 live runs exposed three
 problems the fixtures could not show, all fixed: a lost discrepancy, a table-quote validation bug, and an indication
@@ -485,8 +492,9 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 - **Deployment defaults.** The database port binds to 127.0.0.1 only; its password comes from `POSTGRES_PASSWORD`;
   the API warns at startup when `COOKIE_SECURE` is off in production.
 - **Uploads.** Checked server-side for extension, magic bytes (`%PDF-`, or a DOCX zip containing `word/document.xml`)
-  and size. Files are stored as `bytea` and never written to a public path. DOCX conversion runs LibreOffice with an
-  isolated, throwaway profile and a timeout.
+  and size. A DOCX whose zip directory declares more than 50 MB unpacked (a zip bomb) is refused with 413, and the
+  worker checks again before conversion. Files are stored as `bytea` and never written to a public path. DOCX
+  conversion runs LibreOffice with an isolated, throwaway profile and a timeout.
 - **No published source.** Production web images ship no source maps; the PDF viewer (react-pdf + pdf.js) is a
   separate chunk loaded only when a document opens.
 - **Dependencies.** CI fails on high/critical advisories in production dependencies (`pnpm audit --prod`).
@@ -506,17 +514,17 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 ## Testing and quality
 
 ```bash
-pnpm test:unit          # 76 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
+pnpm test:unit          # 78 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
                         #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
                         #           injection, error classification, bounded concurrency, dependency pins, status
-                        #           rules, parsers (doses/units/frequencies/timing), RRF retrieval, summary guard
-pnpm test:web           # 69 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
-pnpm test:integration   # 53 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+                        #           rules, parsers (doses/units/frequencies/timing), RRF retrieval, summary guard, DOCX zip-bomb guard
+pnpm test:web           # 71 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
+pnpm test:integration   # 58 tests vs real Postgres (incl. robustness: perturbations, adversarial model) (needs `docker compose up -d db`; creates `mediverify_test`)
 pnpm test:coverage      # all three, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode:
                         #   reviewer flow + axe WCAG 2.1 AA scan of every page (incl. colour contrast)
 pnpm size               # build the web app and enforce gzip bundle budgets
-pnpm eval               # retrieval + classification evaluation → numbers in docs/evaluation.md
+pnpm eval               # retrieval + classification + robustness evaluation → numbers in docs/evaluation.md
 pnpm eval:live          # same with real OpenAI (needs OPENAI_API_KEY)
 pnpm run ci             # format:check + lint + typecheck + unit + web + integration (mirrors GitHub Actions)
                         # (`pnpm ci` without `run` is a built-in pnpm command, not this script)
@@ -549,7 +557,7 @@ using responses captured from a fixture-mode run of the bundled sample, so the D
 Each page also runs an axe-core check. Colour contrast needs real layout, so it is checked in Playwright instead
 (`tests/e2e/a11y.spec.ts`).
 
-Coverage (unit + web + integration, 2026-11-11): 85.1% statements, 81.9% branches, 88.2% functions. It was 57.6%
+Coverage (unit + web + integration, 2026-11-11): 86.0% statements, 83.3% branches, 88.5% functions. It was 57.6%
 before the component tests; the thresholds in `vitest.config.ts` were raised to match.
 
 **Tooling.**
@@ -579,7 +587,7 @@ before the component tests; the thresholds in `vitest.config.ts` were raised to 
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 76 unit, 69 web, 53 integration and
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally (2026-11-11): 78 unit, 71 web, 58 integration and
 > 6 Playwright tests (smoke + accessibility, desktop + Pixel 7) pass, with coverage thresholds enforced. The new web
 > tests, accessibility scan and bundle budget have not run in GitHub Actions yet. Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
 > the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.

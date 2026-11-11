@@ -19,7 +19,6 @@
   },
   "dependencies": {
     "@mediverify/shared": "workspace:*",
-    "pg": "8.23.1",
-    "pgvector": "0.3.1"
+    "pg": "8.23.1"
   }
 }

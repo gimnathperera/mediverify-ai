@@ -145,4 +145,28 @@ describe('DocumentPage', () => {
     // A new stream is opened after a short backoff (no page refresh needed).
     await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2), { timeout: 3000 });
   });
+
+  it('shows what a failed job completed, labelled as partial', async () => {
+    server.use(
+      http.get('/api/jobs/:id', () =>
+        HttpResponse.json(failedJob('MODEL_UNAVAILABLE', 'Model provider unavailable')),
+      ),
+    );
+    open();
+    expect(await screen.findByText('Partial results')).toBeInTheDocument();
+    expect(screen.getByText(/processing stopped at summarized/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+  });
+
+  it('on small screens, moves focus to the document and back to the quote link', async () => {
+    const { user } = open();
+    await screen.findByRole('heading', { name: 'Summary' });
+    await user.click(screen.getByRole('tab', { name: /medications/i }));
+    const link = screen.getByRole('button', { name: /show pravoxil prescription/i });
+    await user.click(link);
+    expect(screen.getByRole('tab', { name: 'Document' })).toHaveAttribute('aria-selected', 'true');
+    await waitFor(() => expect(screen.getByRole('tabpanel', { name: 'Document' })).toHaveFocus());
+    await user.click(screen.getByRole('button', { name: /back to results/i }));
+    await waitFor(() => expect(link).toHaveFocus());
+  });
 });

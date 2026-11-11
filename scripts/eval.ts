@@ -7,6 +7,8 @@
  *     finding depends on.
  *  4. End-to-end pipeline run on the golden document: per-medication status accuracy, conflict-field
  *     precision/recall, extraction accuracy by field, citation validity.
+ *  5. Robustness (scripts/lib/robustness.ts): prescription perturbations, an adversarial model with
+ *     fabricated quotes, and an injected extraction — independent of the LLM mode (scripted model).
  *
  * Usage: pnpm eval [--live] [--out report.json]
  *   default LLM = fixture (hand-authored outputs, deterministic); --live uses OpenAI (needs OPENAI_API_KEY).
@@ -35,6 +37,8 @@ import {
   withTransaction,
 } from '@mediverify/db';
 import pino from 'pino';
+
+import { runRobustness } from './lib/robustness.js';
 
 const args = process.argv.slice(2);
 const live = args.includes('--live');
@@ -363,6 +367,17 @@ try {
     golden.distractorMonographs.includes(c!.monographName ?? ''),
   ).length;
 
+  // ── 5. robustness (scripted model, so the same in fixture and live mode) ──
+  const robustness = await runRobustness({
+    root: ROOT,
+    pool,
+    embedder,
+    referenceId: refId,
+    retrievalTopK: K,
+    retrievalMinScore: Number(process.env.RETRIEVAL_MIN_SCORE ?? 0.35),
+    goldenStatus: Object.fromEntries(golden.medications.map((m) => [m.drug, m.status])),
+  });
+
   const report = {
     generatedAt: new Date().toISOString(),
     llm: {
@@ -440,6 +455,7 @@ try {
       distractorMonographFindings: distractorFindings,
       perMedication: perMed,
     },
+    robustness,
   };
 
   const lines = [
@@ -463,6 +479,14 @@ try {
     ...perMed.map(
       (p) =>
         `  ${p.statusOk ? '✓' : '✗'} ${p.drug}: expected ${p.expectedStatus} [${p.expectedConflicts.join(',')}] → got ${p.actualStatus} [${p.actualConflicts.join(',')}]`,
+    ),
+    `robustness: perturbations ${robustness.perturbationPass}/${robustness.perturbations.length} as expected; injected extraction ${robustness.injectedDropped ? 'dropped' : 'KEPT'}`,
+    ...robustness.perturbations
+      .filter((p) => !p.ok)
+      .map((p) => `  ✗ ${p.id}: expected ${p.expected.status} → got ${p.status}`),
+    ...robustness.adversarial.map(
+      (a) =>
+        `  adversarial ${a.model}: fabricated claims accepted ${a.fabricatedClaimsAccepted}/${a.modelClaims}, real contradictions kept ${a.contradictionsKept ? 'yes' : 'NO'}, new contradictions ${a.newContradictions}, supported on fabrication ${a.supportedOnFabrication}`,
     ),
   ];
   console.log(lines.join('\n'));

@@ -1,4 +1,6 @@
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+/** A DOCX (zip) may not expand beyond this (zip-bomb guard before LibreOffice runs). */
+export const MAX_DOCX_EXPANDED_BYTES = 50 * 1024 * 1024;
 export const ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.docx'] as const;
 export const PDF_MIME = 'application/pdf';
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

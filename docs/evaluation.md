@@ -98,6 +98,49 @@ exact terms ("contraindicated", "bedtime") matter. End-to-end results were uncha
 | Psychiatry follow-up discrepancy preserved (critical point / summary)                            | **yes / yes**                                                                                                    |
 | Findings citing distractor monographs                                                            | **0**                                                                                                            |
 
+### 5. Robustness beyond the one sample (2026-11-11)
+
+One golden document can't show how the checks behave on other prescriptions, or with a misbehaving model. `pnpm eval`
+(section 5) and `tests/integration/robustness.test.ts` share one runner (`scripts/lib/robustness.ts`). It runs three
+checks against the real indexed formulary. The model is **scripted**, so the numbers are the same in fixture and live mode.
+
+**Prescription perturbations** (`fixtures/robustness.json`, test-only): 14 extractions as a model might return them
+from other discharge summaries. They are verified with a model that takes no position, so each outcome comes from
+parsing, identity, retrieval and the deterministic rules alone. Result: **14 / 14 as expected.**
+
+| Case                                                  | Expected → measured                          |
+| ----------------------------------------------------- | -------------------------------------------- |
+| "Velantine 10 mg tablet", "once-daily"                | Supported (strength/form stripped from name) |
+| "Pravoxil (simvastatin)" 20 mg at bedtime             | Supported (generic in brackets)              |
+| Velantine "0.01 g"                                    | Supported (g → mg)                           |
+| Velantine "1,000 mg"                                  | Contradicted [dose]                          |
+| Pravoxil "twice-daily"                                | Contradicted [frequency]                     |
+| Pravoxil "in the morning" (monograph forbids morning) | Contradicted [timing]                        |
+| Etrazolam "21 days" / "6 weeks" (limit 4 weeks)       | Supported / Contradicted [duration]          |
+| Quintaxin "in the morning" (rule: before breakfast)   | Incomplete [timing: meal relation unstated]  |
+| Cordizem-XR 100 mg, new start unknown                 | Incomplete [dose]                            |
+| Cordizem-XR "50-100 mg" (range never collapsed)       | Incomplete [dose, unit]                      |
+| Velantine "5 mL" (no mg conversion)                   | Incomplete [dose, unit]                      |
+| Velantine "as needed" (scheduled regimen)             | Incomplete [frequency]                       |
+| "Velantina" (look-alike)                              | Unsupported                                  |
+
+**Adversarial model** (as if a prompt injection had succeeded): the six golden extractions are verified by a model
+that answers every field the same way and backs it with a fabricated quote.
+
+| Model behaviour                     | Model claims | Fabricated claims accepted | Real contradictions kept | New contradictions | Supported on fabrication |
+| ----------------------------------- | ------------ | -------------------------- | ------------------------ | ------------------ | ------------------------ |
+| "yes-man": every field consistent   | 22           | **0**                      | 3 / 3                    | 0                  | 0                        |
+| "alarmist": every field in conflict | 13           | **0**                      | 3 / 3                    | 0                  | 0                        |
+
+With either model, Velantine and Quintaxin drop from Supported to **Incomplete**. The rejected claims become
+`unverified` gaps rather than flipping the status either way. A lying model costs coverage, not correctness.
+
+**Injected extraction**: a medication the model "extracts" that is not in the document (`Zentrovax 5 mg`) is
+**dropped** by table reconciliation.
+
+What this does not cover: other document layouts (the parser is only exercised on the sample PDF and DOCX), other
+formularies, and real-model variance on new documents. Those need more labelled documents.
+
 ## Live-model runs (2026-11-10, LLM = **OpenAI `gpt-5.4-mini`**, reasoning effort `low`)
 
 Same evaluation set and code paths as above, with real model inference. A full run takes about 31 s and costs

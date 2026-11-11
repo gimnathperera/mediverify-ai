@@ -1,2 +1,2 @@
-# Replace with the owning team/user before enabling branch protection, e.g.:
-# *       @your-org/your-team
+# Every path is owned by the repository maintainer (review required when branch protection is on).
+*       @gimnathperera

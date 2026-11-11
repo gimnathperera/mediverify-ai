@@ -125,6 +125,13 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   127.0.0.1 with env password, fixture default without a key, origins for WEB_PORT/127.0.0.1, asset security headers,
   eval-live gated on its secret. Web: infinite list, delete, needs-attention panel, parameter strips, exact PDF
   highlighting, resilient live updates, 401 → sign-in, zod-free bundle (entry 154 → 128 KB gz).
+- 2026-11-11 (follow-up): robustness evaluation (14 prescription perturbations 14/14; scripted adversarial model
+  accepted 0 fabricated claims and kept all 3 real contradictions; injected extraction dropped) shared by `pnpm eval`
+  and an integration test via `loadVerifyContext` (extracted from the verified stage); failed jobs show what they
+  completed as "Partial results"; on small screens "show in document" moves focus to the PDF and back; sticky
+  medication column; DOCX zip-bomb guard (central-directory size ≤ 50 MB, API 413 + worker check); removed unused
+  `mammoth` and npm `pgvector`; CODEOWNERS owner set. Locally 78 unit / 71 web / 58 integration / 6 Playwright,
+  coverage 86.0% statements.
 
 ## Known risks
 
