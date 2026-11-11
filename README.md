@@ -39,10 +39,9 @@ Fixture mode exists so anyone can run the demo without a key and CI stays determ
 model outputs for the bundled sample only and is labelled in the UI and on every result. The real pipeline has been
 run end to end with OpenAI `gpt-5.4-mini` (details and history in [docs/evaluation.md](docs/evaluation.md#live-model-runs-2026-11-10-llm--openai-gpt-54-mini-reasoning-effort-low)):
 
-| Live run                                 | Statuses   | Conflict fields | Citations valid | Critical-point quotes | Usage                            |
-| ---------------------------------------- | ---------- | --------------- | --------------- | --------------------- | -------------------------------- |
-| `pnpm eval:live`, 2026-11-11             | 6 / 6      | P / R 100%      | 100%            | 100%                  | 8 calls · 18,318 tokens · 27.6 s |
-
+| Live run                     | Statuses | Conflict fields | Citations valid | Critical-point quotes | Usage                            |
+| ---------------------------- | -------- | --------------- | --------------- | --------------------- | -------------------------------- |
+| `pnpm eval:live`, 2026-11-11 | 6 / 6    | P / R 100%      | 100%            | 100%                  | 8 calls · 18,318 tokens · 27.6 s |
 
 ![A real-model result: no fixture banner, the summary is labelled "openai · gpt-5.4-mini", and the pipeline header shows 8 model calls and 18,219 tokens; Cordizem-XR, Pravoxil and Etrazolam are contradicted](docs/screenshots/live-result.png)
 
@@ -671,7 +670,6 @@ before the component tests; the thresholds in `vitest.config.ts` were raised to 
   - a manual `eval-live` job gated on the `OPENAI_API_KEY` secret
 - `release.yml` builds images on `v*` tags and pushes to GHCR only when the `PUBLISH_IMAGES` variable is enabled.
 - Dependabot is configured for npm, Actions and Docker.
-
 
 Measured evaluation results, method and failure modes are in **[docs/evaluation.md](docs/evaluation.md)**.
 
