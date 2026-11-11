@@ -7,6 +7,7 @@ import { Link, useNavigate } from 'react-router';
 import { api } from '../lib/api';
 import { qk, useConfig, useMe } from '../lib/queries';
 
+import { BackToTop } from './BackToTop';
 import { ConfirmDialog } from './ui/confirm-dialog';
 import { Button } from './ui/primitives';
 
@@ -101,6 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         {children}
       </main>
+      <BackToTop />
     </div>
   );
 }

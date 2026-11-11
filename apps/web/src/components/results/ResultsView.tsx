@@ -2,6 +2,7 @@ import type { CitationDto, ResultsDto, VerificationStatus } from '@mediverify/sh
 import * as Tabs from '@radix-ui/react-tabs';
 import { useEffect, useState } from 'react';
 
+import { scrollBehavior } from '../../lib/utils';
 import { CitationSheet } from '../CitationSheet';
 import { TAB_ITEM, TabIndicator, useTabIndicator } from '../ui/tab-indicator';
 
@@ -33,7 +34,7 @@ export function ResultsView({
     // The tab panel may mount after this commit; look the card up on the next frame.
     const frame = requestAnimationFrame(() => {
       const el = document.getElementById(verificationAnchor(focusRequest.id));
-      el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      el?.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
       el?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);

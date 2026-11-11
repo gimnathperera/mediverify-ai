@@ -5,7 +5,7 @@ import {
   type DocumentStatusFilter,
 } from '@mediverify/shared/client';
 import { FileText, RefreshCw, Search, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { memo, useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { DocumentListSkeleton } from '../components/skeletons';
@@ -22,7 +22,10 @@ import {
 } from '../lib/queries';
 import { notify } from '../lib/toast';
 import { usePageTitle } from '../lib/usePageTitle';
-import { formatBytes, formatDateTime } from '../lib/utils';
+import { cn, formatBytes, formatDateTime, prefersReducedMotion } from '../lib/utils';
+
+/** Matches the server's `q` limit (documentListQuerySchema). */
+const SEARCH_MAX_LENGTH = 200;
 
 const FILTER_LABEL: Record<DocumentStatusFilter, string> = {
   all: 'All',
@@ -44,11 +47,40 @@ export function DocumentsPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const { listRef: filterList, indicatorRef: filterIndicator } =
     useTabIndicator<HTMLDivElement>(status);
+  const [refreshing, setRefreshing] = useState(false);
+  const [leaving, setLeaving] = useState<ReadonlySet<string>>(new Set());
   usePageTitle('Documents');
   const shown = docs.data?.pages.flatMap((p) => p.items) ?? [];
   const counts = docs.data?.pages[0]?.counts;
-  const filtering = query !== '' || status !== 'all';
-  const hasDocuments = filtering || (counts?.all ?? 0) > 0;
+  // While new results load, the previous ones stay on screen (placeholder data) — dimmed, not swapped.
+  const stale = docs.isPlaceholderData;
+  // Counts are per search, so "the user has no documents" is only known from a settled, unfiltered
+  // result. Until then (typing, debounce, fetch) the search bar stays mounted and keeps focus.
+  const filtering = query !== '' || q !== '' || status !== 'all';
+  const settledUnfiltered = Boolean(docs.data) && !stale && !filtering;
+  const showToolbar = !(settledUnfiltered && counts?.all === 0);
+  const noDocuments = settledUnfiltered && counts?.all === 0 && pending.length === 0;
+  const noMatches = Boolean(docs.data) && !stale && filtering && shown.length === 0;
+
+  const refresh = () => {
+    setRefreshing(true);
+    void docs.refetch().finally(() => setRefreshing(false));
+  };
+  const removePending = (tempId: string) => {
+    setPending((p) => p.filter((x) => x.tempId !== tempId));
+    setLeaving((s) => {
+      const next = new Set(s);
+      next.delete(tempId);
+      return next;
+    });
+  };
+  // Fade a dismissed card out, then remove it (onAnimationEnd, with a timer in case the event never
+  // fires, e.g. in a background tab); reduced motion removes it at once.
+  const dismiss = (tempId: string) => {
+    if (prefersReducedMotion()) return removePending(tempId);
+    setLeaving((s) => new Set(s).add(tempId));
+    window.setTimeout(() => removePending(tempId), 250);
+  };
   const loadMore = () => {
     if (docs.hasNextPage && !docs.isFetchingNextPage) void docs.fetchNextPage();
   };
@@ -105,17 +137,18 @@ export function DocumentsPage() {
           <h2 id="history-h" className="font-semibold text-slate-900">
             Your documents
           </h2>
+          {/* Spins only for a refresh the user asked for, not for search fetches or background polls. */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void docs.refetch()}
+            onClick={refresh}
             aria-label="Refresh list"
-            loading={docs.isFetching && !docs.isLoading}
+            loading={refreshing}
           >
-            {!(docs.isFetching && !docs.isLoading) && <RefreshCw className="h-4 w-4" aria-hidden />}
+            {!refreshing && <RefreshCw className="h-4 w-4" aria-hidden />}
           </Button>
         </div>
-        {hasDocuments && (
+        {showToolbar && (
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <label htmlFor={searchId} className="sr-only">
@@ -129,6 +162,7 @@ export function DocumentsPage() {
                 ref={searchRef}
                 id={searchId}
                 type="search"
+                maxLength={SEARCH_MAX_LENGTH}
                 placeholder="Search by file name"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -181,11 +215,26 @@ export function DocumentsPage() {
         <div className="-m-1 max-h-[70dvh] overflow-y-auto overscroll-contain p-1 lg:max-h-[calc(100dvh-16rem)]">
           {/* Announce a short summary, not the whole list, when results change. */}
           <p className="sr-only" aria-live="polite">
-            {docs.data && `${shown.length} of ${counts?.[status] ?? shown.length} documents shown`}
+            {docs.data &&
+              !stale &&
+              `${shown.length} of ${counts?.[status] ?? shown.length} documents shown`}
           </p>
-          <ul className="space-y-2" aria-label="Documents">
+          <ul
+            className={cn(
+              'space-y-2 transition-opacity duration-200 motion-reduce:transition-none',
+              stale && 'opacity-60',
+            )}
+            aria-label="Documents"
+            aria-busy={stale || undefined}
+          >
             {pending.map((p) => (
-              <li key={p.tempId}>
+              <li
+                key={p.tempId}
+                className={leaving.has(p.tempId) ? 'list-item-out' : 'list-item-in'}
+                onAnimationEnd={() => {
+                  if (leaving.has(p.tempId)) removePending(p.tempId);
+                }}
+              >
                 <Card className={p.error ? 'border-rose-300 p-4' : 'p-4'}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-3">
@@ -201,11 +250,7 @@ export function DocumentsPage() {
                       </div>
                     </div>
                     {p.error ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPending((x) => x.filter((y) => y.tempId !== p.tempId))}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => dismiss(p.tempId)}>
                         Dismiss
                       </Button>
                     ) : (
@@ -251,22 +296,31 @@ export function DocumentsPage() {
               </Button>
             </div>
           )}
-        </div>
-        {docs.data && filtering && shown.length === 0 && (
-          <EmptyState icon={<Search className="h-8 w-8" />} title="No documents match">
-            <Button
-              variant="link"
-              onClick={() => {
-                setQuery('');
-                setStatus('all');
-              }}
+          {noMatches && (
+            <EmptyState
+              className="list-item-in"
+              icon={<Search className="h-8 w-8" />}
+              title="No documents match"
             >
-              Clear search and filters
-            </Button>
-          </EmptyState>
-        )}
-        {docs.data && !filtering && counts?.all === 0 && pending.length === 0 && (
-          <EmptyState icon={<FileText className="h-8 w-8" />} title="No documents yet">
+              <Button
+                variant="link"
+                onClick={() => {
+                  setQuery('');
+                  setStatus('all');
+                  searchRef.current?.focus();
+                }}
+              >
+                Clear search and filters
+              </Button>
+            </EmptyState>
+          )}
+        </div>
+        {noDocuments && (
+          <EmptyState
+            className="list-item-in"
+            icon={<FileText className="h-8 w-8" />}
+            title="No documents yet"
+          >
             Upload a discharge summary (PDF or DOCX) to start a verification job.
           </EmptyState>
         )}
@@ -275,10 +329,11 @@ export function DocumentsPage() {
   );
 }
 
-function DocumentRow({ d }: { d: DocumentDto }) {
+/** Memoised: query results are structurally shared, so unchanged rows skip re-rendering on search. */
+const DocumentRow = memo(function DocumentRow({ d }: { d: DocumentDto }) {
   const job = d.latestJob;
   return (
-    <li>
+    <li className="list-item-in">
       <Link to={`/documents/${d.id}`} className="block rounded-xl focus-visible:outline-2">
         <Card className="p-4 transition-colors hover:border-brand-600">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -306,4 +361,4 @@ function DocumentRow({ d }: { d: DocumentDto }) {
       </Link>
     </li>
   );
-}
+});

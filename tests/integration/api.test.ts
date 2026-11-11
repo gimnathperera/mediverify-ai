@@ -43,16 +43,28 @@ function upload(
 
 describe('auth', () => {
   it('signup → me → logout revokes the session', async () => {
-    const { agent, email } = await signedInAgent(app, 'auth');
-    const me = await agent.get('/api/auth/me').expect(200);
-    expect(me.body.email).toBe(email);
-    const cookie = (await agent.get('/api/auth/me')).request.getHeader?.('cookie');
-    await agent.post('/api/auth/logout').expect(204);
-    await agent.get('/api/auth/me').expect(401);
-    // The old token is revoked server-side, not just cleared client-side.
-    if (typeof cookie === 'string') {
-      await request(app.getHttpServer()).get('/api/auth/me').set('Cookie', cookie).expect(401);
-    }
+    const server = request(app.getHttpServer());
+    const email = `auth-${Date.now()}@test.local`;
+    const signup = await server
+      .post('/api/auth/signup')
+      .send({ email, password: 'Sup3r-secret!' })
+      .expect(201);
+    // The raw session cookie, replayed by hand below (an agent would drop it on logout).
+    const cookie = String(signup.headers['set-cookie']).split(';')[0]!;
+    expect(cookie).toMatch(/^mv_session=.+/);
+
+    const me = await server.get('/api/auth/me').set('Cookie', cookie).expect(200);
+    expect(me.body.user.email).toBe(email);
+    await server.post('/api/auth/logout').set('Cookie', cookie).expect(204);
+
+    // The old token is revoked server-side, not just cleared client-side: the session probe
+    // answers 200 with no user (no failed request for a signed-out visitor) …
+    expect((await server.get('/api/auth/me').set('Cookie', cookie).expect(200)).body).toEqual({
+      user: null,
+    });
+    // … while protected routes still answer 401.
+    await server.get('/api/documents').set('Cookie', cookie).expect(401);
+    expect((await server.get('/api/auth/me').expect(200)).body).toEqual({ user: null });
   });
 
   it('sets an HttpOnly, SameSite=Strict session cookie and stores no plaintext token', async () => {

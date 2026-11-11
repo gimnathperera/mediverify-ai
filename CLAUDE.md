@@ -89,7 +89,7 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-11): 78 unit + 71 web + 58 integration + 6 Playwright pass locally (coverage 86%). GitHub Actions
+- Status (2026-11-11): 78 unit + 87 web + 58 integration + 6 Playwright pass locally (coverage 87%). GitHub Actions
   passed on `main` after PR #20 (the hardening sprint: migration 0002, RRF retrieval, status reasons, limits,
   cancellation, usage, pagination, delete, retention). The follow-up on `chore/result-optimizations` (robustness eval,
   partial results, zip-bomb guard, removed `mammoth`/npm `pgvector`) has not run in CI yet. The post-sprint live eval
@@ -111,13 +111,22 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   `notify.success|error|warning|info|loading|promise` (`lib/toast.tsx`, react-hot-toast + `AppToaster`: top-center,
   close button, warning/info icons in react-hot-toast's style; errors/warnings are `role=alert`); accessible names must
   contain the visible text (axe label-content-name-mismatch); no `text-slate-400` for text on white (contrast).
-- Deployment guards: `ALLOW_SIGNUP`, `DAILY_JOB_LIMIT` (uploads + retries per user per 24 h, checked in the
+- Deployment guards: `ALLOW_SIGNUP` (sign-up on in every mode unless `false`), `DAILY_JOB_LIMIT` (uploads + retries per user per 24 h, checked in the
   job-creating tx). Verification runs `VERIFY_CONCURRENCY` medications in parallel (`mapWithConcurrency`).
 - UI building blocks (`components/ui`): `Select` (aligned chevron), `ConfirmDialog` (Radix AlertDialog, `destructive` for red; backdrop click cancels; use for
   sign-out and other accidental-click actions), `useTabIndicator` + `TabIndicator` (sliding highlight for tabs and
   segmented filters; items use `TAB_ITEM`), `LoadingRegion` + shaped skeletons in `components/skeletons.tsx`
   (no page-level spinners; `RequireAuth` takes the page's `skeleton`). Animations honour prefers-reduced-motion;
   the Playwright axe spec waits for finite animations before scanning.
+- Forms: `PasswordInput` (show/hide toggle keeping focus and caret), `FieldError` + `aria-invalid`/`aria-describedby`
+  per field, validators in `lib/validation.ts` using the shared `EMAIL_MAX_LENGTH`/`PASSWORD_*` constants (the API
+  schema uses the same ones); server errors map back to fields. `/login` and `/signup` routes carry distinct `key`s so
+  state never leaks between them. `GET /api/auth/me` answers 200 `{user | null}` (no 401 when signed out).
+- Motion and layout: CSS-only animations in `styles.css` (`list-item-in/out`, `sheet-content` slide, dialog fade),
+  all in the reduced-motion block; `scrollBehavior()` / `prefersReducedMotion()` in `lib/utils.ts` for programmatic
+  scrolls; `BackToTop` in `AppShell`; `PipelineAccordion` (grid-rows expand) for finished jobs, the live
+  `PipelineTimeline` while running. Document list: never unmount the search bar while results are pending
+  (`isPlaceholderData`); "No documents yet" only from a settled unfiltered result (counts are per search).
 - Retrieval: `retrieveEvidence` (packages/core/src/verification/retrieval.ts) = per-aspect queries + RRF over vector and
   OR-tsquery rankings (`rankMonographFieldChunks`); the eval's ablation compares it with vector-only and the old mix.
 - LLM calls are scoped per stage by the runner (`scopeLlm`: AbortSignal + stage logger + usage sink); a stage timeout

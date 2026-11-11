@@ -22,10 +22,11 @@ export function Sheet({
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-40 bg-slate-900/40" />
+        {/* Overlay fades (shared dialog keyframes); the panel slides in from the right (styles.css). */}
+        <Dialog.Overlay className="dialog-overlay fixed inset-0 z-40 bg-slate-900/40" />
         <Dialog.Content
           className={cn(
-            'fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-xl focus:outline-none',
+            'sheet-content fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-white shadow-xl focus:outline-none',
             wide ? 'max-w-4xl' : 'max-w-xl',
           )}
         >

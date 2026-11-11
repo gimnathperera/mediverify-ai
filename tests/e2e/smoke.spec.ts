@@ -16,11 +16,11 @@ test('reviewer flow: login → upload → live pipeline → verification → cit
 
   // Invalid credentials show an error state.
   await page.getByLabel('Email').fill(EMAIL);
-  await page.getByLabel('Password').fill('definitely-wrong');
+  await page.getByLabel('Password', { exact: true }).fill('definitely-wrong');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page.getByRole('alert')).toContainText('Invalid email or password');
 
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL(/\/documents$/);
 
@@ -35,7 +35,7 @@ test('reviewer flow: login → upload → live pipeline → verification → cit
 
   // Pipeline reaches a terminal state; a refresh mid-way must not lose state.
   await page.reload();
-  await expect(page.getByText(/Pipeline completed — 8\/8 stages/)).toBeVisible({
+  await expect(page.getByRole('button', { name: /Pipeline completed — 8\/8 stages/ })).toBeVisible({
     timeout: 110_000,
   });
 

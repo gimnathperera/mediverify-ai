@@ -36,8 +36,8 @@ docker compose up --build
 ```
 
 2. For **real model inference**, put your key in `.env` (`cp .env.example .env`, set `OPENAI_API_KEY=`) and run
-   `docker compose up -d` again: with a key the provider switches to OpenAI automatically, and self-service sign-up is
-   switched off by default (seed users still work). Every result is labelled with the model that produced it.
+   `docker compose up -d` again: with a key the provider switches to OpenAI automatically. Sign-up stays open; spend
+   is capped by the per-user and app-wide daily job limits. Every result is labelled with the model that produced it.
 
 3. Open **http://localhost:8088** and sign in:
 
@@ -93,7 +93,7 @@ comments, including the queue timings and development settings under "Advanced".
 | -------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------- |
 | `LLM_PROVIDER` / `OPENAI_API_KEY` / `OPENAI_MODEL` | auto / – / `gpt-5.4-mini` | Model provider. Empty = `openai` when a key is set, otherwise `fixture` (the key-less demo)       |
 | `LLM_TIMEOUT_MS` / `LLM_MAX_RETRIES`               | `90000` / `3`             | Per-call timeout; retries for 429 rate limits, 5xx and network errors                             |
-| `ALLOW_SIGNUP`                                     | auto                      | Empty = on in fixture mode, off when a paid OpenAI key is set; seed users always sign in          |
+| `ALLOW_SIGNUP`                                     | `true`                    | Self-service sign-up, in every mode; `false` closes it (seed users still sign in)                 |
 | `DAILY_JOB_LIMIT`                                  | `20`                      | Pipeline runs (uploads + retries) per user per rolling 24 h; `0` = unlimited. Duplicates are free |
 | `GLOBAL_DAILY_JOB_LIMIT`                           | `200`                     | Pipeline runs across all users per rolling 24 h (spend cap); `0` = unlimited                      |
 | `MAX_DOCUMENT_PAGES` / `MAX_DOCUMENT_CHARS`        | `50` / `150000`           | Input limits checked after parsing (`DOCUMENT_TOO_LARGE`); `LLM_MAX_PROMPT_TOKENS` caps prompts   |
@@ -435,7 +435,7 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 | POST   | `/auth/signup`                    | 201. Password ≥ 8 characters. Rate-limited.                                                                                                                                     |
 | POST   | `/auth/login`                     | 200. Sets the `mv_session` cookie (HttpOnly, SameSite=Strict). Rate-limited. Timing equalized for unknown emails.                                                               |
 | POST   | `/auth/logout`                    | 204                                                                                                                                                                             |
-| GET    | `/auth/me`                        |                                                                                                                                                                                 |
+| GET    | `/auth/me`                        | Session probe: 200 `{user}`, or `{user: null}` when signed out (no 401, so a signed-out visit logs no failed request).                                                          |
 | GET    | `/references`                     | Shared and read-only.                                                                                                                                                           |
 | GET    | `/references/:id/file`            | The reference PDF (for the deep link).                                                                                                                                          |
 | GET    | `/references/:id/chunks/:chunkId` | Citation preview.                                                                                                                                                               |
@@ -491,7 +491,7 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
   - Cookie: HttpOnly, SameSite=Strict; `Secure` is configurable for TLS deployments.
   - Mutating requests must carry an allowed `Origin`.
   - Web and API share an origin through the nginx/Vite proxy, so there is no CORS.
-- **Spending and abuse limits.** Sign-up is off by default when a paid model key is configured (`ALLOW_SIGNUP`);
+- **Spending and abuse limits.** Sign-up is open in every mode (an operator can close it with `ALLOW_SIGNUP=false`);
   each user gets a rolling 24 h budget of pipeline runs (`DAILY_JOB_LIMIT`) and the whole deployment another
   (`GLOBAL_DAILY_JOB_LIMIT`), both checked inside the job-creating transaction under advisory locks. Input limits
   (`MAX_DOCUMENT_PAGES`, `MAX_DOCUMENT_CHARS`, `LLM_MAX_PROMPT_TOKENS`) stop oversized documents before any model
@@ -526,7 +526,7 @@ pnpm test:unit          # 78 tests: parsing/table reconstruction (PDF + LibreOff
                         #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
                         #           injection, error classification, bounded concurrency, dependency pins, status
                         #           rules, parsers (doses/units/frequencies/timing), RRF retrieval, summary guard, DOCX zip-bomb guard
-pnpm test:web           # 71 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
+pnpm test:web           # 87 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
 pnpm test:integration   # 58 tests vs real Postgres (incl. robustness: perturbations, adversarial model) (needs `docker compose up -d db`; creates `mediverify_test`)
 pnpm test:coverage      # all three, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode:
@@ -550,7 +550,7 @@ The integration tests break down as follows:
   reaper, zombie-lease protection, surviving a dropped LISTEN connection, **stage timeout aborting the in-flight model
   call**, the page limit refusing a document before any model call, one medication's failure isolated (with usage
   recorded), citation snapshots surviving a re-index, and retention.
-- **Deployment limits (4):** sign-up disabled, per-user and app-wide daily run budgets, sign-up off by default with a
+- **Deployment limits (4):** sign-up disabled, per-user and app-wide daily run budgets, sign-up still open with a
   paid key.
 
 The **web tests** (`apps/web/test`) render real components with the app's providers. The API is mocked with MSW,
@@ -560,12 +560,16 @@ using responses captured from a fixture-mode run of the bundled sample, so the D
 - the document list's search, filters, empty, error and retry states, and optimistic upload with rollback
 - results grouping, status filters, citation sheet, critical-point → verification jump with focus, and medications table
 - failed-job messages and retry; live SSE progress with replay de-duplication
-- sign-in errors linked to fields; disabled sign-up; route protection; the per-route error boundary
+- sign-in and sign-up forms: client-side validation with inline field errors (email, password length, confirmation),
+  server errors mapped to fields, the password show/hide toggle keeping focus, no error carried between the two
+  screens; disabled sign-up; route protection; the per-route error boundary
+- the pipeline accordion (collapsed when completed, open on the failed stage), back-to-top, and a cleared zero-match
+  search keeping focus without flashing the empty state
 
 Each page also runs an axe-core check. Colour contrast needs real layout, so it is checked in Playwright instead
 (`tests/e2e/a11y.spec.ts`).
 
-Coverage (unit + web + integration, 2026-11-11): 86.0% statements, 83.3% branches, 88.5% functions. It was 57.6%
+Coverage (unit + web + integration, 2026-11-11): 86.8% statements, 83.6% branches, 89.4% functions. It was 57.6%
 before the component tests; the thresholds in `vitest.config.ts` were raised to match.
 
 **Tooling.**
@@ -597,7 +601,7 @@ before the component tests; the thresholds in `vitest.config.ts` were raised to 
 > **Status (2026-11-11):** GitHub Actions passes on `main` (after PR #20). That covers format, lint, typecheck and
 > bundle budget; unit, web and integration tests with coverage thresholds; the dependency audit and secret scan; and
 > the Compose build with Playwright E2E (smoke + accessibility, desktop + Pixel 7, fixture mode). Locally: 78 unit,
-> 71 web, 58 integration and 6 Playwright tests pass. That count includes the robustness evaluation, partial results
+> 87 web, 58 integration and 6 Playwright tests pass. That count includes the robustness evaluation, partial results
 > and the DOCX zip-bomb guard, which are newer than the last `main` CI run. The live OpenAI evaluation ran locally
 > (`pnpm eval:live`; last run 2026-11-11, after the hardening sprint). The manual `eval-live` CI job needs an
 > `OPENAI_API_KEY` repository secret and has not run in CI.

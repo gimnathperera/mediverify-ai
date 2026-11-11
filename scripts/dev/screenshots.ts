@@ -18,7 +18,7 @@ const page = await browser.newPage({
 });
 await page.goto(`${BASE}/login`);
 await page.getByLabel('Email').fill(EMAIL);
-await page.getByLabel('Password').fill(PASSWORD);
+await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
 await page.getByRole('button', { name: 'Sign in' }).click();
 await page.waitForURL(/\/documents$/);
 
@@ -37,10 +37,10 @@ await page.locator('.react-pdf__Page canvas').first().waitFor();
 await page.waitForTimeout(800);
 await shot(page, 'document-view');
 
-await page.getByText(/Pipeline completed — 8\/8 stages/).click();
+await page.getByRole('button', { name: /Pipeline completed — 8\/8 stages/ }).click();
 await page.waitForTimeout(400);
 await shot(page, 'pipeline');
-await page.getByText(/Pipeline completed — 8\/8 stages/).click();
+await page.getByRole('button', { name: /Pipeline completed — 8\/8 stages/ }).click();
 
 await page.getByRole('button', { name: /Pravoxil › Prescribing notes, p\.5/ }).click();
 await page.getByRole('dialog').getByText('Quote verified in source').waitFor();

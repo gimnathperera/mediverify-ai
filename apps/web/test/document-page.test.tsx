@@ -41,8 +41,21 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'primary_document_medical.pdf',
     );
-    expect(screen.getByText(/pipeline completed — 8\/8 stages/i)).toBeInTheDocument();
     expect(document.title).toBe('primary_document_medical.pdf · MediVerify AI');
+  });
+
+  it('summarises a finished pipeline in a collapsed accordion that expands to the stages', async () => {
+    const { user } = open();
+    const header = await screen.findByRole('button', { name: /pipeline completed — 8\/8 stages/i });
+    expect(header).toHaveAttribute('aria-expanded', 'false');
+    // Collapsed content is inert: present for the animation, hidden from assistive tech.
+    expect(screen.queryByRole('list', { name: /pipeline stages/i })).not.toBeInTheDocument();
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    const stages = screen.getByRole('list', { name: /pipeline stages/i });
+    expect(within(stages).getAllByRole('listitem')).toHaveLength(8);
+    await user.click(header);
+    expect(header).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('shows a citation from the results in the document viewer', async () => {
@@ -78,6 +91,10 @@ describe('DocumentPage', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(/processing failed/i);
     expect(alert).toHaveTextContent(/no remaining API credit/i);
+    // A failed pipeline opens by default, naming the failed stage and showing its error.
+    const header = screen.getByRole('button', { name: /pipeline failed at/i });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    expect(header).toHaveAccessibleName(/\d\/8 stages/);
     const timeline = screen.getByRole('list', { name: /pipeline stages/i });
     expect(within(timeline).getByText(/MODEL_QUOTA_EXCEEDED/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /retry/i }));

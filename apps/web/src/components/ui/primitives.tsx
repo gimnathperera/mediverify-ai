@@ -59,13 +59,22 @@ export const Input = React.forwardRef<
   <input
     ref={ref}
     className={cn(
-      'flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:border-brand-600 disabled:opacity-50',
+      'flex h-10 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:border-brand-600 disabled:opacity-50 aria-invalid:border-rose-500 aria-invalid:focus-visible:border-rose-600 aria-invalid:focus-visible:outline-rose-600',
       className,
     )}
     {...props}
   />
 ));
 Input.displayName = 'Input';
+
+/** Inline validation message under a field; link it with the input's `aria-describedby`. */
+export function FieldError({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <p id={id} className="text-xs text-rose-700">
+      {children}
+    </p>
+  );
+}
 
 export function Label({
   htmlFor,
@@ -223,13 +232,20 @@ export function EmptyState({
   icon,
   title,
   children,
+  className,
 }: {
   icon: React.ReactNode;
   title: string;
   children?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center',
+        className,
+      )}
+    >
       <div className="text-slate-400">{icon}</div>
       <p className="font-medium text-slate-700">{title}</p>
       {children && <div className="max-w-md text-sm text-slate-500">{children}</div>}

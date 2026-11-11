@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { EMAIL_MAX_LENGTH, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from './constants.js';
 import {
   DOCUMENT_PAGE_SIZE,
   DOCUMENT_STATUS_FILTERS,
@@ -14,9 +15,12 @@ import { JOB_STATUSES, STAGES, STAGE_STATUSES } from './stages.js';
 export const credentialsSchema = z.object({
   email: z
     .email()
-    .max(254)
+    .max(EMAIL_MAX_LENGTH)
     .transform((e) => e.trim().toLowerCase()),
-  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
+  password: z
+    .string()
+    .min(PASSWORD_MIN_LENGTH, `Password must be at least ${PASSWORD_MIN_LENGTH} characters`)
+    .max(PASSWORD_MAX_LENGTH),
 });
 export type Credentials = z.infer<typeof credentialsSchema>;
 

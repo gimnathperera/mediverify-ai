@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { PdfViewer } from '../components/LazyPdfViewer';
-import { PipelineTimeline } from '../components/PipelineTimeline';
+import { PipelineAccordion, PipelineTimeline } from '../components/PipelineTimeline';
 import { ResultsView } from '../components/results/ResultsView';
 import { DocumentPageSkeleton, ResultsSkeleton } from '../components/skeletons';
 import { JobStatusBadge } from '../components/status';
@@ -26,7 +26,6 @@ import {
 import { notify } from '../lib/toast';
 import { useJobStream } from '../lib/useJobStream';
 import { usePageTitle } from '../lib/usePageTitle';
-import { formatDuration, formatUsage } from '../lib/utils';
 
 type Pane = 'results' | 'document';
 
@@ -72,7 +71,6 @@ export function DocumentPage() {
     );
   }
   const d = doc.data!;
-  const totalMs = job.data?.stages.reduce((n, s) => n + (s.durationMs ?? 0), 0) ?? 0;
   const canPreview =
     d.mimeType === 'application/pdf' ||
     job.data?.stages.find((s) => s.stage === 'parsed')?.status === 'completed';
@@ -187,24 +185,16 @@ export function DocumentPage() {
       )}
       {!jobId && <Alert tone="warning" title="No processing job found for this document" />}
 
-      {job.data && !done && <PipelineTimeline job={job.data} stream={state} notes={notes} />}
+      {/* Live card while processing; a collapsible summary once the job has finished. */}
+      {job.data && !done && !failed && (
+        <PipelineTimeline job={job.data} stream={state} notes={notes} />
+      )}
       {failed && (
         <Alert tone="danger" title="Processing failed">
           {jobFailureMessage(job.data!.errorCode, job.data!.errorMessage)}
         </Alert>
       )}
-      {done && job.data && (
-        <details className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm">
-          <summary className="cursor-pointer select-none text-slate-700">
-            Pipeline completed — {job.data.stages.length}/{job.data.stages.length} stages in{' '}
-            {formatDuration(totalMs)}
-            {formatUsage(job.data.llmUsage, job.data.llmProvider)}
-          </summary>
-          <div className="py-3">
-            <PipelineTimeline job={job.data} stream={state} notes={notes} compact />
-          </div>
-        </details>
-      )}
+      {job.data && (done || failed) && <PipelineAccordion key={job.data.id} job={job.data} />}
 
       {/* One layout: side by side on large screens, tabs on small screens (same DOM, so the PDF
           viewer keeps its page when switching). */}
@@ -232,7 +222,8 @@ export function DocumentPage() {
             <Button variant="ghost" size="sm" className="mb-2 lg:hidden" onClick={backToResults}>
               <ArrowLeft className="h-4 w-4" aria-hidden /> Back to results
             </Button>
-            <Card className="h-[75vh] overflow-hidden lg:sticky lg:top-20">
+            {/* Tall, portrait-friendly reading area: fills the viewport below the sticky header. */}
+            <Card className="h-[80dvh] overflow-hidden lg:sticky lg:top-20 lg:h-[calc(100dvh-6rem)]">
               {canPreview ? (
                 <PdfViewer
                   url={`/api/documents/${d.id}/file`}

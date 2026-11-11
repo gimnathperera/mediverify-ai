@@ -106,11 +106,55 @@
   }
 }
 
+/* Side sheets (components/ui/sheet.tsx): slide in from the right edge and fade. */
+.sheet-content[data-state='open'] {
+  animation: sheet-in 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet-content[data-state='closed'] {
+  animation: sheet-out 160ms ease-in;
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes sheet-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+
+/* List rows: new rows fade and rise in; a removed row fades out before it is unmounted. */
+.list-item-in {
+  animation: panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.list-item-out {
+  animation: list-item-out 160ms ease-in forwards;
+}
+@keyframes list-item-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+/* Smooth in-page scrolling (anchors, scrollIntoView without an explicit behavior). */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [role='tabpanel'][data-state='active'],
   .skeleton,
   .dialog-overlay,
   .dialog-content,
+  .sheet-content,
+  .list-item-in,
+  .list-item-out,
   .tab-indicator {
     animation: none !important;
     transition: none !important;

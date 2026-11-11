@@ -76,7 +76,8 @@ export interface ChunkPreview extends Omit<CitationDto, 'quote' | 'quoteValid'> 
 
 export const api = {
   config: () => request<RuntimeConfig>('/config'),
-  me: () => request<UserDto>('/auth/me'),
+  /** The signed-in user, or null when signed out (the session probe answers 200 either way). */
+  me: () => request<{ user: UserDto | null }>('/auth/me').then((r) => r.user),
   login: (c: Credentials) =>
     request<UserDto>('/auth/login', { method: 'POST', body: JSON.stringify(c) }),
   signup: (c: Credentials) =>

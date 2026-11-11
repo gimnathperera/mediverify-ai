@@ -40,7 +40,7 @@ test('sign-in, documents and results pages have no serious accessibility violati
   await expectAccessible(page, 'sign-in');
 
   await page.getByLabel('Email').fill(EMAIL);
-  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveTitle(/Documents · MediVerify AI/);
   await expect(page.getByText(/Indexed: \d+ monographs/)).toBeVisible();
@@ -48,7 +48,7 @@ test('sign-in, documents and results pages have no serious accessibility violati
 
   await page.getByTestId('file-input').setInputFiles(PRIMARY);
   await expect(page).toHaveURL(/\/documents\/[0-9a-f-]{36}$/);
-  await expect(page.getByText(/Pipeline completed — 8\/8 stages/)).toBeVisible({
+  await expect(page.getByRole('button', { name: /Pipeline completed — 8\/8 stages/ })).toBeVisible({
     timeout: 110_000,
   });
   if (isMobile) await page.getByRole('tab', { name: 'Results' }).click();

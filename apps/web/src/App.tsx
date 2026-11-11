@@ -54,7 +54,9 @@ export function App() {
       <Route
         path="/login"
         element={
-          <PublicOnly>
+          // Distinct keys: switching between sign-in and sign-up mounts a fresh form, so field values
+          // and errors (e.g. a failed sign-in) never carry over to the other screen.
+          <PublicOnly key="login">
             <AuthPage mode="login" />
           </PublicOnly>
         }
@@ -62,7 +64,7 @@ export function App() {
       <Route
         path="/signup"
         element={
-          <PublicOnly>
+          <PublicOnly key="signup">
             <AuthPage mode="signup" />
           </PublicOnly>
         }

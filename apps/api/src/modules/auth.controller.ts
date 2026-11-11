@@ -7,7 +7,6 @@ import type { Logger } from 'pino';
 
 import { ApiError } from '../common/api-error.js';
 import {
-  CurrentUser,
   hashToken,
   newSessionToken,
   Public,
@@ -104,8 +103,14 @@ export class AuthController {
     res.clearCookie(SESSION_COOKIE, { ...this.cookieOptions(), maxAge: undefined });
   }
 
+  /**
+   * Session probe: 200 with the signed-in user, or `{ user: null }` when signed out (not a 401, so
+   * a normal visit to the sign-in page logs no failed request). The global guard has already
+   * resolved the session cookie into `req.user`; every other route still answers 401.
+   */
+  @Public()
   @Get('me')
-  me(@CurrentUser() user: UserDto): UserDto {
-    return user;
+  me(@Req() req: AuthedRequest): { user: UserDto | null } {
+    return { user: req.user ?? null };
   }
 }
