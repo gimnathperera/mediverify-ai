@@ -61,6 +61,21 @@ ranked by cosine and by full-text rank, and the rankings are fused with Reciproc
 | Quintaxin   | Standard adult dose, Prescribing notes, Monitoring | 2, 1, 4                      | 0.67      | 1.00      |
 | **Mean**    |                                                    |                              | **0.933** | **1.000** |
 
+**Raw retrieval vs final evidence.** The table above is the ranking alone: Recall@K counts only the top K ranked
+chunks. Two later steps add passages without ranking them: the Contraindications field is always appended, and every
+field a deterministic rule cites is added (`evidencePassages`, shared by the pipeline and the eval). The eval reports
+the coverage of those final passages separately, so the ranking metric is never inflated by them:
+
+| Measure                                                                                   | Mean          |
+| ----------------------------------------------------------------------------------------- | ------------- |
+| Recall@3 / Recall@6, ranking only                                                         | 0.933 / 1.000 |
+| Final evidence coverage (relevance gate + appended Contraindications + rule-cited fields) | **1.000**     |
+| Expected fields that came only from the post-ranking additions                            | **0**         |
+
+On this sample the additions supplied no expected field (they appended only Cordizem-XR's Contraindications), so all
+evidence the verdicts depend on was found by the ranking itself. On a longer or differently worded formulary the two
+numbers can diverge; then the gap shows how much the deterministic safety net, rather than retrieval, is carrying.
+
 Every retrieved passage belonged to the matched monograph (no cross-monograph leakage). K = 6 is the default because
 K = 3 would miss Quintaxin's Monitoring field (rank 4). Deterministic checks also add the evidence field they rely on
 to the LLM's passages, so a ranking miss can't hide a constraint.
@@ -177,6 +192,13 @@ applicability, validated new-start evidence, the extended summary guard). Report
 | Non-decisive findings                             | all `not_constrained` (the monograph sets no rule) — none `not_stated` / insufficient / rejected |
 | Model usage recorded on the job                   | **8 calls, 18,318 tokens** (11,797 prompt + 6,521 completion); cost not computed (no prices set) |
 | Wall time                                         | 27.6 s                                                                                           |
+
+### Live run through the app (2026-11-11)
+
+The sample uploaded through the UI with the stack in live mode (screenshot in the README): **6 / 6** statuses with
+the exact conflict fields (Cordizem-XR dose, Pravoxil timing, Etrazolam duration), **30 / 30** citations and **14 / 14**
+critical-point quotes validated, the psychiatry discrepancy kept as a cited critical point and in the summary, 0
+summary-guard warnings, **8 model calls, 18,219 tokens**, 30.3 s.
 
 Quintaxin, which one earlier run flagged as an indication conflict, stays Supported by design: the model judged the
 indication "not addressed", which the status rules read as "no rule in the formulary" rather than a conflict.

@@ -23,7 +23,9 @@ import {
   ensureReferenceIndexed,
   matchMonograph,
   retrievalQuery,
-  retrieveEvidence,
+  deterministicChecks,
+  evidencePassages,
+  loadVerifyContext,
   runClaimedJob,
   type MedicationForCheck,
 } from '@mediverify/core';
@@ -49,6 +51,7 @@ if (live && !process.env.OPENAI_API_KEY) {
 const outIdx = args.indexOf('--out');
 const outFile = outIdx >= 0 ? args[outIdx + 1] : undefined;
 const K = Number(process.env.RETRIEVAL_TOP_K ?? 6);
+const MIN_SCORE = Number(process.env.RETRIEVAL_MIN_SCORE ?? 0.35);
 const ROOT = process.cwd();
 
 interface Golden {
@@ -153,6 +156,28 @@ try {
     });
   }
 
+  const llm = createLlmProvider(
+    {
+      ...process.env,
+      // Deterministic by default, even if .env selects openai for the app; --live opts in.
+      LLM_PROVIDER: live ? 'openai' : 'fixture',
+      LLM_FIXTURE_DIR: path.join(ROOT, 'fixtures/llm'),
+    },
+    log,
+  );
+  // The pipeline's own verification context (same retrieval, rules and chunks as the worker).
+  const verifyCtx = await loadVerifyContext(
+    pool,
+    embedder,
+    { retrievalTopK: K, retrievalMinScore: MIN_SCORE },
+    refId,
+  );
+  if (!verifyCtx) throw new Error('reference is not indexed');
+  const verifyDeps = verifyCtx.deps(llm, {
+    primaryContext: () => Promise.resolve([]),
+    primaryText: '',
+  });
+
   // ── 3. targeted within-monograph retrieval ──
   type Recall = { recallAt3: number; recallAtK: number };
   const targeted: (Recall & {
@@ -160,6 +185,8 @@ try {
     expectedFields: string[];
     retrieved: (string | null)[];
     byStrategy: Record<string, Recall>;
+    finalCoverage: number;
+    addedAfterRanking: string[];
     allFromMatchedMonograph: boolean;
   })[] = [];
   for (const g of known) {
@@ -192,28 +219,28 @@ try {
       .sort((a, b) => b.vector_score - a.vector_score)
       .map((r) => r.field_label);
     const weighted = legacyRows.map((r) => r.field_label); // previous 0.7·cosine + 0.3·text (SQL order)
-    const rrf = await retrieveEvidence({
-      med,
-      topK: K,
-      embed: (t) => embedder.embedQuery(t),
-      rank: async (embedding, t) =>
-        (await referencesRepo.rankMonographFieldChunks(pool, mono.id, embedding, t)).map((r) => ({
-          id: r.id,
-          monographId: r.monograph_id,
-          fieldLabel: r.field_label,
-          page: r.page_start,
-          text: r.text,
-          vectorScore: r.vector_score,
-          textScore: r.text_score,
-        })),
-    });
+    const rrf = await verifyDeps.retrieve(mono.id, med);
+    // Raw retrieval = the RRF ranking only. The always-included Contraindications chunk is appended
+    // after the top K, so it never counts towards Recall@K.
+    const ranked = rrf.chunks.slice(0, K).map((c) => c.fieldLabel);
+    // Final evidence = what the verifier is given: chunks above the relevance gate plus every field
+    // a deterministic rule cites (evidencePassages, shared with the pipeline).
+    const rules = verifyCtx.monographs.find((m) => m.id === mono.id)?.rules ?? null;
+    const fieldChunks = (await verifyDeps.monographChunks(mono.id)).filter(
+      (c) => c.fieldLabel !== null,
+    );
+    const finalLabels = evidencePassages(
+      rrf.chunks.filter((c) => c.vectorScore >= MIN_SCORE),
+      fieldChunks,
+      rules ? deterministicChecks(med, rules) : [],
+    ).map((c) => c.fieldLabel);
     const need = g.evidenceFields;
     const recall = (labels: (string | null)[], k: number) =>
       need.filter((f) => labels.slice(0, k).includes(f)).length / need.length;
     const strategies = {
       vector: vectorOnly,
       weightedHybrid: weighted,
-      rrf: rrf.chunks.map((c) => c.fieldLabel),
+      rrf: ranked,
     };
     targeted.push({
       drug: g.drug,
@@ -227,20 +254,15 @@ try {
           { recallAt3: recall(labels, 3), recallAtK: recall(labels, K) },
         ]),
       ),
+      finalCoverage: need.filter((f) => finalLabels.includes(f)).length / need.length,
+      addedAfterRanking: [...new Set(finalLabels)].filter(
+        (f): f is string => f !== null && !ranked.includes(f),
+      ),
       allFromMatchedMonograph: rrf.chunks.every((c) => c.monographId === mono.id),
     });
   }
 
   // ── 4. end-to-end pipeline on the golden document ──
-  const llm = createLlmProvider(
-    {
-      ...process.env,
-      // Deterministic by default, even if .env selects openai for the app; --live opts in.
-      LLM_PROVIDER: live ? 'openai' : 'fixture',
-      LLM_FIXTURE_DIR: path.join(ROOT, 'fixtures/llm'),
-    },
-    log,
-  );
   const primary = await readFile(path.join(ROOT, 'resources/primary_document_medical.pdf'));
   const user = (await usersRepo.createUser(pool, `eval-${Date.now()}@eval.local`, 'n/a'))!;
   const { jobId } = await withTransaction(pool, (c) =>
@@ -273,7 +295,7 @@ try {
       embedder,
       config: {
         retrievalTopK: K,
-        retrievalMinScore: Number(process.env.RETRIEVAL_MIN_SCORE ?? 0.35),
+        retrievalMinScore: MIN_SCORE,
       },
     },
     claimed.rows[0]!,
@@ -374,7 +396,7 @@ try {
     embedder,
     referenceId: refId,
     retrievalTopK: K,
-    retrievalMinScore: Number(process.env.RETRIEVAL_MIN_SCORE ?? 0.35),
+    retrievalMinScore: MIN_SCORE,
     goldenStatus: Object.fromEntries(golden.medications.map((m) => [m.drug, m.status])),
   });
 
@@ -406,6 +428,11 @@ try {
     targetedRetrieval: {
       meanRecallAt3: (targeted.reduce((s, t) => s + t.recallAt3, 0) / targeted.length).toFixed(3),
       meanRecallAtK: (targeted.reduce((s, t) => s + t.recallAtK, 0) / targeted.length).toFixed(3),
+      note: 'Recall@K = ranking only (forced chunks excluded). finalEvidenceCoverage = fields in the passages the verifier receives (relevance gate + rule-cited fields).',
+      finalEvidenceCoverage: (
+        targeted.reduce((s, t) => s + t.finalCoverage, 0) / targeted.length
+      ).toFixed(3),
+      fieldsAddedAfterRanking: targeted.reduce((n, t) => n + t.addedAfterRanking.length, 0),
       allPassagesFromMatchedMonograph: targeted.every((t) => t.allFromMatchedMonograph),
       ablation: Object.fromEntries(
         (['vector', 'weightedHybrid', 'rrf'] as const).map((name) => [
@@ -465,7 +492,11 @@ try {
       .filter((n) => !n.expected)
       .map((n) => `${n.query}→${n.top1} (${n.top1Score})`)
       .join(', ')}`,
-    `targeted retrieval (RRF): mean Recall@3 ${report.targetedRetrieval.meanRecallAt3}, Recall@${K} ${report.targetedRetrieval.meanRecallAtK}`,
+    `targeted retrieval (RRF, ranking only): mean Recall@3 ${report.targetedRetrieval.meanRecallAt3}, Recall@${K} ${report.targetedRetrieval.meanRecallAtK}`,
+    `final evidence given to the verifier (relevance gate + rule-cited fields): coverage ${report.targetedRetrieval.finalEvidenceCoverage}; ${targeted
+      .filter((t) => t.addedAfterRanking.length)
+      .map((t) => `${t.drug} +${t.addedAfterRanking.join('/')}`)
+      .join(', ')}`,
     `retrieval ablation (Recall@3 / Recall@${K}): ${Object.entries(
       report.targetedRetrieval.ablation,
     )

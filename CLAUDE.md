@@ -127,6 +127,8 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   scrolls; `BackToTop` in `AppShell`; `PipelineAccordion` (grid-rows expand) for finished jobs, the live
   `PipelineTimeline` while running. Document list: never unmount the search bar while results are pending
   (`isPlaceholderData`); "No documents yet" only from a settled unfiltered result (counts are per search).
+- Retrieval eval separates ranking from the safety net: Recall@K = RRF ranking only (the appended Contraindications
+  chunk is excluded); "final evidence coverage" = `evidencePassages` (shared with `verifyMedication`) after the gate.
 - Retrieval: `retrieveEvidence` (packages/core/src/verification/retrieval.ts) = per-aspect queries + RRF over vector and
   OR-tsquery rankings (`rankMonographFieldChunks`); the eval's ablation compares it with vector-only and the old mix.
 - LLM calls are scoped per stage by the runner (`scopeLlm`: AbortSignal + stage logger + usage sink); a stage timeout

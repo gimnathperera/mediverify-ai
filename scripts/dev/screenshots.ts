@@ -1,6 +1,8 @@
 /**
  * Captures README screenshots from a running stack (default http://localhost:8088, fixture mode).
- * Usage: pnpm exec tsx scripts/dev/screenshots.ts [baseUrl]
+ * Usage: pnpm exec tsx scripts/dev/screenshots.ts [baseUrl] [live]
+ * `live` (stack running with a real model): captures only `live-result.png`, the document view with
+ * the pipeline summary showing the model calls and tokens of a real run.
  */
 import { chromium, type Page } from '@playwright/test';
 
@@ -28,13 +30,22 @@ const list = (await (
 const done = list.items.find((d) => d.filename === 'primary_document_medical.pdf');
 if (!done) throw new Error('No completed primary_document_medical.pdf — upload it first');
 
-await page.waitForTimeout(500);
-await shot(page, 'documents');
+const live = process.argv[3] === 'live';
+if (!live) {
+  await page.waitForTimeout(500);
+  await shot(page, 'documents');
+}
 
 await page.goto(`${BASE}/documents/${done.id}`);
 await page.getByRole('heading', { name: 'Summary' }).waitFor();
 await page.locator('.react-pdf__Page canvas').first().waitFor();
 await page.waitForTimeout(800);
+if (live) {
+  await shot(page, 'live-result');
+  await browser.close();
+  console.log(`live screenshot written to ${OUT}/live-result.png`);
+  process.exit(0);
+}
 await shot(page, 'document-view');
 
 await page.getByRole('button', { name: /Pipeline completed — 8\/8 stages/ }).click();

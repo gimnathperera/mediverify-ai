@@ -5,12 +5,72 @@ Checks a hospital discharge summary against an institutional formulary digest. I
 - a plain-language summary,
 - cited critical points,
 - a structured medication list,
-- and, for each medication, a **Supported / Contradicted / Unsupported** verdict.
+- and, for each medication, a **Supported / Contradicted / Unsupported** verdict, or **Incomplete** when the
+  verification could not be completed (see [Verification statuses](#verification-statuses-three-verdicts-plus-incomplete)).
 
 Every verdict comes with verbatim, validated evidence from the reference.
 
 > **Fictional data, demo only.** The bundled documents are fictional. Nothing here is clinical advice. The UI shows this
 > disclaimer at all times.
+
+## Implementation highlights
+
+- **6 / 6 expected medication classifications** on the bundled sample, with the fixture model _and_ with the real
+  model (OpenAI `gpt-5.4-mini`): conflict-field precision and recall 100%, every citation validated
+  ([evaluation](docs/evaluation.md)).
+- **Hybrid RAG with an identity gate.** A drug is matched to a monograph by name or explicit alias only, so a
+  look-alike (Pranixol vs Pravoxil) never borrows another drug's rules. Retrieval inside the matched monograph fuses
+  vector and full-text rankings (RRF). Every citation quote must appear in the cited chunk.
+- **Rules decide, the model explains.** Monograph rules are parsed deterministically at index time. A model claim
+  counts only with a validated quote; a scripted adversarial model got 0 fabricated claims accepted.
+- **Asynchronous, durable processing.** Uploads return `202` at once. A Postgres queue (`SKIP LOCKED`, leases,
+  heartbeats, a reaper) runs 8 tracked stages, streamed live over SSE, with retries and stage timeouts that cancel
+  in-flight model calls.
+- **Tested where it matters.** 78 unit, 87 web (jsdom + axe) and 58 integration tests against real Postgres:
+  authorization (other users' resources → 404), transaction atomicity (an injected failure inside the upload
+  transaction leaves nothing behind), crash recovery, the golden pipeline and robustness cases. Plus 6 Playwright E2E
+  runs (desktop and mobile, with an accessibility scan). CI runs them on every pull request.
+- **Reproducible demo.** `docker compose up --build` runs the whole stack without a key, in a clearly labelled fixture
+  mode; add `OPENAI_API_KEY` for real inference.
+
+## Results with the real model
+
+Fixture mode exists so anyone can run the demo without a key and CI stays deterministic: it replays hand-authored
+model outputs for the bundled sample only and is labelled in the UI and on every result. The real pipeline has been
+run end to end with OpenAI `gpt-5.4-mini` (details and history in [docs/evaluation.md](docs/evaluation.md#live-model-runs-2026-11-10-llm--openai-gpt-54-mini-reasoning-effort-low)):
+
+| Live run                                 | Statuses   | Conflict fields | Citations valid | Critical-point quotes | Usage                            |
+| ---------------------------------------- | ---------- | --------------- | --------------- | --------------------- | -------------------------------- |
+| Through the app, 2026-11-11 (screenshot) | 6 / 6      | 3 / 3 exact     | 30 / 30         | 14 / 14               | 8 calls · 18,219 tokens · 30.3 s |
+| `pnpm eval:live`, 2026-11-11             | 6 / 6      | P / R 100%      | 100%            | 100%                  | 8 calls · 18,318 tokens · 27.6 s |
+| 8 × `pnpm eval:live`, 2026-11-10         | 7 / 8 runs |                 | 100% every run  |                       | about US$0.06 per run            |
+
+The one miss in the eight 2026-11-10 runs was an indication false positive, since guarded in code. Both
+2026-11-11 runs also kept the document's internal discrepancy (psychiatry follow-up in two weeks vs at 8 weeks)
+in the summary and as a cited critical point, with no summary-guard warnings.
+
+![A real-model result: no fixture banner, the summary is labelled "openai · gpt-5.4-mini", and the pipeline header shows 8 model calls and 18,219 tokens; Cordizem-XR, Pravoxil and Etrazolam are contradicted](docs/screenshots/live-result.png)
+
+## Verification statuses: three verdicts plus Incomplete
+
+The brief's three classifications are unchanged, and they are the only **verdicts**:
+
+| Status           | Meaning                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------- |
+| **Supported**    | A monograph exists and every prescribing rule it states was checked and is consistent. |
+| **Contradicted** | A monograph exists and at least one field conflicts with it (with a validated quote).  |
+| **Unsupported**  | The formulary has no monograph for this drug: a coverage gap, not a safety finding.    |
+| _Incomplete_     | **Not a verdict.** The verification could not be completed, so no verdict is given.    |
+
+Incomplete is an evidence/processing state, kept separate on purpose: a check that could not finish must never be
+shown as "Supported" (a false all-clear) or as "Unsupported" (a false coverage gap). It is used when a value is
+missing or ambiguous in the document (a dose range, "5 mL" against a mg rule), when no passage clears the relevance
+threshold, when a model claim fails quote validation, or when the model call for that medication fails. The result
+says which fields could not be confirmed and why (`not_stated`, `insufficient_evidence`, `unverified`), and the UI
+lists it under _Needs attention_. On the bundled sample every verification completes, so all six medications get
+one of the three verdicts.
+
+### Screenshots (fixture mode)
 
 ![Document view: the discharge summary on the left; on the right the summary, then a Needs attention panel listing the contradicted medications with the conflicting field](docs/screenshots/document-view.png)
 
@@ -18,8 +78,12 @@ Every verdict comes with verbatim, validated evidence from the reference.
 | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | ![Citation sheet for Pravoxil timing: monograph, section, field, page and the quote marked as verified in the source](docs/screenshots/citation.png) | ![The reference PDF opened at page 5 with the cited sentence highlighted](docs/screenshots/reference-deep-link.png) |
 
-Screenshots are from fixture mode (see the banner), taken 2026-11-11.
-[`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts) recaptures them from a running stack.
+| Document list (search, status filters, upload)                                                                                                | Finished pipeline: 8 stages with timings and details                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| ![Documents page: upload panel with reference selector, and the document list with search and status filters](docs/screenshots/documents.png) | ![The expanded pipeline accordion: parsed, chunked, embedded, summarized, key points, entities, verified, done](docs/screenshots/pipeline.png) |
+
+Taken 2026-11-11 with a fresh demo account. [`scripts/dev/screenshots.ts`](scripts/dev/screenshots.ts) recaptures
+them from a running stack (`… live` captures the real-model image).
 
 ---
 
@@ -76,9 +140,20 @@ pnpm dev:web                       # :5173, proxies /api → :3001
 
 **Environment.** Every setting has a default, so nothing _requires_ a `.env`. Compose reads `.env` automatically, and
 the host-side commands (`db:migrate`, `db:seed`, `dev:api`, `dev:worker`, `eval`, `eval:live`) load it if it exists.
-Without a `.env`, `LLM_PROVIDER` defaults to `openai` with no key: jobs then fail with `MODEL_NOT_CONFIGURED`. For a
-key-less demo use `LLM_PROVIDER=fixture`. `pnpm eval` always uses fixtures; `pnpm eval:live` refuses to start
-without `OPENAI_API_KEY`.
+
+**Which model runs.** Docker and local development resolve the provider the same way (`resolveLlmProvider` in
+`packages/shared`): an empty `LLM_PROVIDER` means OpenAI when a key is present, otherwise fixture mode.
+
+| How you run it                                    | Without `OPENAI_API_KEY`                                     | With `OPENAI_API_KEY`     |
+| ------------------------------------------------- | ------------------------------------------------------------ | ------------------------- |
+| `docker compose up` (`LLM_PROVIDER` empty)        | fixture mode, labelled in the UI                             | OpenAI (`OPENAI_MODEL`)   |
+| `pnpm dev:api` + `pnpm dev:worker` (same rule)    | fixture mode, labelled in the UI                             | OpenAI                    |
+| `LLM_PROVIDER=openai` set explicitly              | jobs fail with `MODEL_NOT_CONFIGURED`; the UI shows a banner | OpenAI                    |
+| `LLM_PROVIDER=fixture` set explicitly             | fixture mode                                                 | fixture mode (key unused) |
+| `pnpm eval` / integration tests / CI / Playwright | fixture mode, always (deterministic)                         | fixture mode, always      |
+| `pnpm eval:live`                                  | refuses to start                                             | OpenAI                    |
+
+Fixture mode only has outputs for the bundled sample PDF; any other document fails with `FIXTURE_NOT_FOUND`.
 
 **Getting an OpenAI key:** sign in at platform.openai.com, add API credit under _Settings → Billing_ (separate from a
 ChatGPT subscription; consider a monthly usage limit), then _API keys → Create new secret key_. Put it in `.env` as
@@ -304,8 +379,9 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
    - No match → **Unsupported**, citing the coverage note. Close names are listed as "similar, not matched".
 2. **Targeted retrieval** inside the matched monograph only: one query per prescribing aspect (dose, schedule,
    duration, indication/contraindications), each ranked by embedding similarity and by full-text rank, fused with
-   **Reciprocal Rank Fusion** (top-K = 6). Contraindications are always included, and fields used by deterministic
-   rules are always added, so a ranking miss can't hide a constraint. Relevance gate: best cosine ≥ 0.35.
+   **Reciprocal Rank Fusion** (top-K = 6). After ranking, the Contraindications field is always appended and every
+   field a deterministic rule cites is added (`evidencePassages`), so a ranking miss can't hide a constraint. These
+   additions are not counted in the retrieval Recall@K below. Relevance gate: best cosine ≥ 0.35.
    Retrieval failure → `incomplete`, never "unsupported". (The earlier `0.7·cosine + 0.3·ts_rank` mix was replaced:
    measured, its full-text half matched no chunk with AND semantics and saturated otherwise — see the ablation in
    [docs/evaluation.md](docs/evaluation.md).)
@@ -333,9 +409,11 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
    - **Incomplete:** anything else — the summary lists which fields could not be confirmed and why.
    - **Unsupported:** no monograph in this reference (a coverage gap, not "unsafe").
 
-   **Why four states.** A reviewer must never read "we couldn't check" as "fine". Unsupported is a property of the
-   reference (it has no monograph), Incomplete is a property of the evidence (parse, retrieval, model or data gap),
-   and only Supported asserts that every rule the formulary states was checked. The label comes from these
+   **Why Incomplete is kept apart from the three verdicts** (see
+   [Verification statuses](#verification-statuses-three-verdicts-plus-incomplete)). A reviewer must never read "we
+   couldn't check" as "fine". Unsupported is a property of the reference (it has no monograph), Incomplete is a
+   property of the evidence (parse, retrieval, model or data gap), and only Supported asserts that every rule the
+   formulary states was checked. The label comes from these
    deterministic rules over validated findings, never directly from the model. One failed model call makes only that
    medication Incomplete; the rest are still verified.
 
@@ -368,15 +446,16 @@ rewrite primary-document points. They appear only in verification results, which
 
 ### Retrieval evaluation strategy
 
-Retrieval is evaluated as three separate questions, because each one fails in a different way. `pnpm eval` measures
-all three against the bundled documents and writes a JSON report (CI keeps it as an artifact). Full tables and
+Retrieval is evaluated as four separate questions, because each one fails in a different way. `pnpm eval` measures
+all four against the bundled documents and writes a JSON report (CI keeps it as an artifact). Full tables and
 failure modes are in [docs/evaluation.md](docs/evaluation.md).
 
-| Question                                 | How it is measured                                                                                                                                                                                                | Result (fixture LLM, real retrieval)                                                                                                                                                              |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Is the right monograph chosen?**       | Identity gate on 5 positives (the prescribed drugs that have monographs) and 7 negatives: Pranixol plus adversarial look-alikes (Velantina, Quintaxol, Etrazepam, Floranex, Sumavastin, "Cordizem" without "-XR") | 5/5 matched, 7/7 correctly not matched                                                                                                                                                            |
-| **Would vector search alone be safe?**   | Diagnostic: the same names queried against _all_ chunks without the gate                                                                                                                                          | Every absent name retrieves a look-alike (e.g. Pranixol → Pravoxil, cosine 0.818, overlapping true matches at 0.86–0.89). No threshold separates them, which is why identity is decided lexically |
-| **Are the deciding passages retrieved?** | Recall@K of the expected evidence fields (from the golden file) among passages retrieved inside the matched monograph, for vector-only, the old weighted hybrid and RRF                                           | RRF: Recall@3 **0.93**, **Recall@6 1.00** (weighted hybrid 0.83 / 1.00; vector-only 0.93 / 1.00), so K defaults to 6                                                                              |
+| Question                                 | How it is measured                                                                                                                                                                                                  | Result (fixture LLM, real retrieval)                                                                                                                                                              |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Is the right monograph chosen?**       | Identity gate on 5 positives (the prescribed drugs that have monographs) and 7 negatives: Pranixol plus adversarial look-alikes (Velantina, Quintaxol, Etrazepam, Floranex, Sumavastin, "Cordizem" without "-XR")   | 5/5 matched, 7/7 correctly not matched                                                                                                                                                            |
+| **Would vector search alone be safe?**   | Diagnostic: the same names queried against _all_ chunks without the gate                                                                                                                                            | Every absent name retrieves a look-alike (e.g. Pranixol → Pravoxil, cosine 0.818, overlapping true matches at 0.86–0.89). No threshold separates them, which is why identity is decided lexically |
+| **Are the deciding passages retrieved?** | Recall@K of the expected evidence fields (from the golden file) in the **ranking alone**, inside the matched monograph, for vector-only, the old weighted hybrid and RRF. Chunks added after ranking are excluded   | RRF: Recall@3 **0.93**, **Recall@6 1.00** (weighted hybrid 0.83 / 1.00; vector-only 0.93 / 1.00), so K defaults to 6                                                                              |
+| **What does the verifier actually get?** | Final evidence coverage: expected fields present in the passages handed to the verifier (relevance gate + always-appended Contraindications + rule-cited fields), via the same `evidencePassages` the pipeline uses | **1.00**; the post-ranking additions contributed no expected field (only Cordizem-XR's Contraindications was appended), so the Recall@6 above is not inflated by them                             |
 
 End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
 citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
@@ -419,10 +498,10 @@ Logs never contain passwords, tokens, API keys, document text or quotes; only id
 
 ### LLM modes: real vs fixture
 
-| `LLM_PROVIDER`     | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `openai` (default) | Real inference. Needs `OPENAI_API_KEY`; without it, jobs fail clearly with `MODEL_NOT_CONFIGURED` and the UI shows a banner.                                                                                                                                                                                                                                                                                                    |
-| `fixture`          | **Hand-authored** model outputs for the bundled sample only (keyed by the document's sha256). They live in `fixtures/llm/`. Everything else runs for real: parsing, table reconciliation, embeddings, retrieval, deterministic checks, merge and quote validation. Unknown documents fail with `FIXTURE_NOT_FOUND`; nothing is fabricated. The UI shows a **FIXTURE MODE** banner. Used for CI, the E2E test and offline demos. |
+| `LLM_PROVIDER` | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openai`       | Real inference (the default whenever `OPENAI_API_KEY` is set). Set explicitly without a key, jobs fail clearly with `MODEL_NOT_CONFIGURED` and the UI shows a banner.                                                                                                                                                                                                                                                                                      |
+| `fixture`      | The default without a key. **Hand-authored** model outputs for the bundled sample only (keyed by the document's sha256). They live in `fixtures/llm/`. Everything else runs for real: parsing, table reconciliation, embeddings, retrieval, deterministic checks, merge and quote validation. Unknown documents fail with `FIXTURE_NOT_FOUND`; nothing is fabricated. The UI shows a **FIXTURE MODE** banner. Used for CI, the E2E test and offline demos. |
 
 ---
 
