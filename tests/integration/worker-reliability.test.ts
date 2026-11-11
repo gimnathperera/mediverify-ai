@@ -1,11 +1,17 @@
-import { LlmError, type LlmProvider, type LlmRequest } from '@mediverify/core';
-import { jobsRepo, withTransaction, type pg } from '@mediverify/db';
+import { FixtureProvider, LlmError, type LlmProvider, type LlmRequest } from '@mediverify/core';
+import {
+  jobsRepo,
+  listenWithReconnect,
+  maintenanceRepo,
+  resultsRepo,
+  withTransaction,
+  type pg,
+} from '@mediverify/db';
 import pino from 'pino';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { listenForJobs } from '../../apps/worker/src/queue-listener.js';
 import { createUser, deps, runJob, testPool, uploadFile } from '../helpers/db.js';
-import { TEST_DATABASE_URL } from '../helpers/env.js';
+import { FIXTURE_DIR, TEST_DATABASE_URL } from '../helpers/env.js';
 
 let pool: pg.Pool;
 beforeAll(() => {
@@ -180,7 +186,7 @@ describe('queue listener', () => {
   it('survives a dropped LISTEN connection, reconnects, and keeps receiving notifications', async () => {
     const channel = 'test_queue_listener';
     const onNotify = vi.fn();
-    const listener = await listenForJobs({
+    const listener = await listenWithReconnect({
       connectionString: TEST_DATABASE_URL,
       channel,
       onNotify,
@@ -208,5 +214,138 @@ describe('queue listener', () => {
     } finally {
       await listener.close();
     }
+  });
+});
+
+/** Never answers on its own; settles only when the stage's abort signal fires. */
+class HangingLlm implements LlmProvider {
+  readonly name = 'hanging';
+  readonly model = 'hanging';
+  sawAbort = false;
+  generate<T>(req: LlmRequest<T>): Promise<T> {
+    return new Promise<T>((_, reject) => {
+      req.signal?.addEventListener('abort', () => {
+        this.sawAbort = true;
+        reject(new Error('aborted'));
+      });
+    });
+  }
+}
+
+/** Fixture outputs, except one medication's verification fails. */
+class PartlyFailingLlm implements LlmProvider {
+  readonly name = 'fixture';
+  readonly model = 'fixture';
+  private readonly inner = new FixtureProvider(FIXTURE_DIR);
+  generate<T>(req: LlmRequest<T>): Promise<T> {
+    if (req.fixtureKey.endsWith('verify--pravoxil'))
+      return Promise.reject(new LlmError('MODEL_UNAVAILABLE', 'provider error', true));
+    return this.inner.generate(req);
+  }
+}
+
+describe('limits, cancellation and partial failure', () => {
+  it('a stage timeout aborts the in-flight model call instead of letting it run on', async () => {
+    const u = await createUser(pool, 'timeout');
+    const { jobId } = await uploadFile(pool, u.id);
+    const llm = new HangingLlm();
+    // Long enough for parsing/embedding; the first model call (summary) then hangs until aborted.
+    const outcome = await runJob(pool, jobId, deps(pool, llm), 'test-worker', {
+      stageTimeoutMs: 8000,
+    });
+    expect(outcome).toBe('requeued'); // STAGE_TIMEOUT is retryable
+    expect(llm.sawAbort).toBe(true);
+    expect((await stages(jobId)).summarized!.status).toBe('pending');
+  });
+
+  it('refuses a document over the page limit before any model call', async () => {
+    const u = await createUser(pool, 'toolarge');
+    const { jobId } = await uploadFile(pool, u.id);
+    const llm = new FailingLlm(new LlmError('MODEL_UNAVAILABLE', 'must not be called'));
+    const d = deps(pool, llm);
+    const outcome = await runJob(pool, jobId, {
+      ...d,
+      config: { ...d.config, maxDocumentPages: 1 },
+    });
+    expect(outcome).toBe('failed');
+    expect((await stages(jobId)).parsed).toMatchObject({
+      status: 'failed',
+      error_code: 'DOCUMENT_TOO_LARGE',
+    });
+    expect(llm.calls).toBe(0);
+  });
+
+  it('one medication failing leaves the others verified and records model usage', async () => {
+    const u = await createUser(pool, 'partial');
+    const { jobId } = await uploadFile(pool, u.id);
+    expect(await runJob(pool, jobId, deps(pool, new PartlyFailingLlm()))).toBe('completed');
+    const results = await resultsRepo.getResultsForOwner(pool, jobId, u.id);
+    const status = Object.fromEntries(results!.verifications.map((v) => [v.drugName, v.status]));
+    expect(status).toMatchObject({
+      Pravoxil: 'incomplete',
+      'Cordizem-XR': 'contradicted',
+      Etrazolam: 'contradicted',
+      Velantine: 'supported',
+      Quintaxin: 'supported',
+      Pranixol: 'unsupported',
+    });
+    const usage = await pool.query<{ llm_usage: { calls: number } }>(
+      'SELECT llm_usage FROM jobs WHERE id = $1',
+      [jobId],
+    );
+    // Summary, critical points, entities and the 4 verifications that succeeded (a failed call
+    // returns no usage).
+    expect(usage.rows[0]!.llm_usage.calls).toBe(7);
+  });
+
+  it('keeps a citation after its passage leaves the index (evidence snapshot)', async () => {
+    const u = await createUser(pool, 'snapshot');
+    const { jobId } = await uploadFile(pool, u.id);
+    expect(await runJob(pool, jobId, deps(pool))).toBe('completed');
+    // Simulate a re-index for this job's findings only (the shared index is left intact).
+    await pool.query(
+      `UPDATE verification_findings f SET chunk_id = NULL
+         FROM verification_results v WHERE v.id = f.verification_result_id AND v.job_id = $1`,
+      [jobId],
+    );
+    const results = await resultsRepo.getResultsForOwner(pool, jobId, u.id);
+    const pravoxil = results!.verifications.find((v) => v.drugName === 'Pravoxil')!;
+    const timing = pravoxil.findings.find((f) => f.field === 'timing')!;
+    expect(timing.citation).toMatchObject({
+      chunkId: null,
+      monographName: 'Pravoxil',
+      quoteValid: true,
+    });
+    expect(timing.citation!.page).toBeGreaterThan(0);
+  });
+});
+
+describe('data lifecycle', () => {
+  it('purges expired sessions and old progress events of finished jobs, keeping results', async () => {
+    const u = await createUser(pool, 'retention');
+    const { jobId } = await uploadFile(pool, u.id);
+    expect(await runJob(pool, jobId, deps(pool))).toBe('completed');
+    await pool.query(
+      "UPDATE job_events SET created_at = now() - interval '40 days' WHERE job_id = $1",
+      [jobId],
+    );
+    const session = await pool.query<{ id: string }>(
+      `INSERT INTO sessions(user_id, token_hash, expires_at)
+       VALUES ($1, gen_random_bytes(32), now() - interval '1 hour') RETURNING id`,
+      [u.id],
+    );
+    const r = await maintenanceRepo.purgeExpiredData(pool, {
+      eventRetentionDays: 30,
+      documentRetentionDays: 0,
+    });
+    expect(r.events).toBeGreaterThan(0);
+    expect(r.documents).toBe(0);
+    const left = await pool.query(
+      `SELECT (SELECT count(*) FROM job_events WHERE job_id = $1)::int AS events,
+              (SELECT count(*) FROM verification_results WHERE job_id = $1)::int AS results,
+              (SELECT count(*) FROM sessions WHERE id = $2)::int AS sessions`,
+      [jobId, session.rows[0]!.id],
+    );
+    expect(left.rows[0]).toEqual({ events: 0, results: 6, sessions: 0 });
   });
 });

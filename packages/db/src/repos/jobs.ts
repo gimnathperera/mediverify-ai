@@ -130,6 +130,10 @@ export async function addStageProgress(
   message: string,
   data: Record<string, unknown> = {},
 ) {
+  // Progress can be written by several concurrent tasks (parallel verification). Serialising per
+  // job makes event ids follow commit order, so an SSE client resuming after id N can't miss an
+  // event that committed later with a smaller id. Call inside a transaction.
+  await q.query("SELECT pg_advisory_xact_lock(hashtext('job-events:' || $1))", [jobId]);
   return appendEvent(q, jobId, stage, 'stage.progress', { message, ...data });
 }
 
@@ -250,6 +254,7 @@ interface JobRow {
   error_code: string | null;
   error_message: string | null;
   llm_provider: string | null;
+  llm_usage: Partial<JobDto['llmUsage']>;
   created_at: Date;
   started_at: Date | null;
   finished_at: Date | null;
@@ -277,7 +282,7 @@ export async function getJobForOwner(
 ): Promise<JobDto | null> {
   const job = await q.query<JobRow>(
     `SELECT id, document_id, status, current_stage, attempts, max_attempts, error_code, error_message,
-            llm_provider, created_at, started_at, finished_at
+            llm_provider, llm_usage, created_at, started_at, finished_at
        FROM jobs WHERE id = $1 AND owner_id = $2`,
     [jobId, ownerId],
   );
@@ -307,6 +312,12 @@ export async function getJobForOwner(
     finishedAt: iso(j.finished_at),
     lastEventId: last.rows[0]?.id ?? '0',
     llmProvider: j.llm_provider,
+    llmUsage: {
+      calls: j.llm_usage.calls ?? 0,
+      promptTokens: j.llm_usage.promptTokens ?? 0,
+      completionTokens: j.llm_usage.completionTokens ?? 0,
+      costUsd: j.llm_usage.costUsd ?? null,
+    },
     stages: stages.rows.map((s): StageDto => ({
       stage: s.stage,
       ordinal: s.ordinal,
@@ -337,6 +348,13 @@ export async function createRetryJob(q: Queryable, jobId: string, ownerId: strin
   const prev = rows[0];
   if (!prev) return { kind: 'not_found' as const };
   if (prev.status !== 'failed') return { kind: 'not_retryable' as const };
+  // Only the document's latest job can be retried: a double click or a second tab must not start
+  // two pipelines (the row lock above serialises concurrent retries; this sees the first one's job).
+  const latest = await q.query<{ id: string }>(
+    'SELECT id FROM jobs WHERE document_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [prev.document_id],
+  );
+  if (latest.rows[0]?.id !== jobId) return { kind: 'not_retryable' as const };
   const job = await q.query<{ id: string }>(
     'INSERT INTO jobs(document_id, owner_id, max_attempts) VALUES ($1, $2, $3) RETURNING id',
     [prev.document_id, ownerId, prev.max_attempts],
@@ -356,10 +374,37 @@ export async function createRetryJob(q: Queryable, jobId: string, ownerId: strin
  * Serialize a user's job creation and count the pipeline runs they started in the last 24 h.
  * Call inside the creating transaction so concurrent uploads can't both slip under the limit.
  */
-export async function lockAndCountRecentJobs(q: Queryable, ownerId: string): Promise<number> {
-  await q.query("SELECT pg_advisory_xact_lock(hashtext('job-quota:' || $1))", [ownerId]);
+/** Add one stage's model usage to the job's running totals (cost stays null if never priced). */
+export async function addLlmUsage(
+  q: Queryable,
+  jobId: string,
+  u: { calls: number; promptTokens: number; completionTokens: number; costUsd: number | null },
+) {
+  await q.query(
+    `UPDATE jobs SET llm_usage = jsonb_build_object(
+        'calls', COALESCE((llm_usage->>'calls')::int, 0) + $2,
+        'promptTokens', COALESCE((llm_usage->>'promptTokens')::int, 0) + $3,
+        'completionTokens', COALESCE((llm_usage->>'completionTokens')::int, 0) + $4,
+        'costUsd', CASE WHEN $5::float8 IS NULL THEN (llm_usage->'costUsd')
+                        ELSE to_jsonb(COALESCE((llm_usage->>'costUsd')::float8, 0) + $5::float8) END)
+      WHERE id = $1`,
+    [jobId, u.calls, u.promptTokens, u.completionTokens, u.costUsd],
+  );
+}
+
+/**
+ * Count jobs created in the last 24 h for one owner, or for everyone when `ownerId` is null, under
+ * an advisory lock so concurrent job-creating transactions can't both slip under a limit.
+ * Callers take the per-user lock before the global one (fixed order → no deadlocks).
+ */
+export async function lockAndCountRecentJobs(
+  q: Queryable,
+  ownerId: string | null,
+): Promise<number> {
+  await q.query("SELECT pg_advisory_xact_lock(hashtext('job-quota:' || $1))", [ownerId ?? '*']);
   const { rows } = await q.query<{ n: number }>(
-    "SELECT count(*)::int AS n FROM jobs WHERE owner_id = $1 AND created_at > now() - interval '24 hours'",
+    `SELECT count(*)::int AS n FROM jobs
+      WHERE ($1::uuid IS NULL OR owner_id = $1) AND created_at > now() - interval '24 hours'`,
     [ownerId],
   );
   return rows[0]?.n ?? 0;

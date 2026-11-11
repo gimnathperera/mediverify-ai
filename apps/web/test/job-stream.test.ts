@@ -1,4 +1,4 @@
-import { STAGES, type JobDto, type JobEventDto } from '@mediverify/shared';
+import { STAGES, type JobDto, type JobEventDto } from '@mediverify/shared/client';
 import { describe, expect, it } from 'vitest';
 
 import { applyEvent } from '../src/lib/useJobStream';
@@ -20,6 +20,7 @@ function snapshot(lastEventId = '10'): JobDto {
     finishedAt: null,
     lastEventId,
     llmProvider: 'fixture',
+    llmUsage: { calls: 0, promptTokens: 0, completionTokens: 0, costUsd: null },
     stages: STAGES.map((stage, ordinal) => ({
       stage,
       ordinal,

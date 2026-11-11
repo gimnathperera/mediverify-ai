@@ -114,6 +114,18 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
   confirmation in a themed alert dialog. +8 web tests; Playwright axe spec waits for animations to settle.
   Entry bundle 140 → 154 KB gz (budget 160) from the alert dialog and skeletons.
 
+- 2026-11-11 (hardening sprint, all review items): migration 0002 (finding reasons, citation snapshots, per-job model
+  usage, list/retention indexes). AI: parser fixes (thousands separators, ranges, unit conversion, frequency variants,
+  two-dimensional timing), identity without strength/form, stricter status with per-field reasons, validated
+  new-start evidence, indication applicability, substantive quotes, per-medication failure isolation, RRF retrieval
+  (ablation in evaluation.md), summary attribution + negation checks. Pipeline: input limits, real cancellation
+  (AbortSignal through model calls and LibreOffice), per-job tokens/cost, serialized progress events. API: keyset
+  pagination with server filters and counts, DELETE, retry idempotency, SSE leak/deleted-job fixes, shared
+  reconnecting LISTEN in API + worker, global daily cap, trust proxy, config validation, retention task. Infra: DB on
+  127.0.0.1 with env password, fixture default without a key, origins for WEB_PORT/127.0.0.1, asset security headers,
+  eval-live gated on its secret. Web: infinite list, delete, needs-attention panel, parameter strips, exact PDF
+  highlighting, resilient live updates, 401 → sign-in, zod-free bundle (entry 154 → 128 KB gz).
+
 ## Known risks
 
 - PDF table reconstruction from text positions (mitigated by parser tests on the real fixture).

@@ -131,3 +131,48 @@ describe('ResultsView — critical points and medications', () => {
     await expectNoA11yViolations(container);
   });
 });
+
+describe('ResultsView — needs attention and parameter strip', () => {
+  it('lists what needs attention, problems first, with the reason, and jumps to the card', async () => {
+    const { user } = setup();
+    const panel = within(screen.getByRole('list', { name: /medications needing attention/i }));
+    const rows = panel.getAllByRole('button');
+    expect(rows.map((r) => r.textContent)).toEqual([
+      expect.stringMatching(/Cordizem-XR.*Conflicts on dose/),
+      expect.stringMatching(/Pravoxil.*Conflicts on timing/),
+      expect.stringMatching(/Etrazolam.*Conflicts on duration/),
+      expect.stringMatching(/Pranixol.*coverage gap/),
+    ]);
+    await user.click(panel.getByRole('button', { name: /show pranixol details/i }));
+    await waitFor(() => expect(card('Pranixol')).toHaveFocus());
+  });
+
+  it('shows every parameter outcome on the card without expanding it', () => {
+    setup();
+    const strip = within(
+      within(card('Velantine')).getByRole('list', { name: /checks by parameter/i }),
+    );
+    expect(strip.getByText(/^Dose/)).toHaveTextContent(/consistent/);
+    expect(strip.getByText(/^Timing/)).toHaveTextContent(/no rule in the formulary/);
+    const pravoxil = within(
+      within(card('Pravoxil')).getByRole('list', { name: /checks by parameter/i }),
+    );
+    expect(pravoxil.getByText(/^Timing/)).toHaveTextContent(/conflict/);
+  });
+
+  it('can be driven from the keyboard (tabs with arrow keys, filter tiles with Enter)', async () => {
+    const { user } = setup();
+    const verification = screen.getByRole('tab', { name: /verification/i });
+    verification.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(screen.getByRole('tab', { name: /critical points/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await user.keyboard('{ArrowLeft}');
+    const tile = screen.getByRole('button', { name: /^unsupported:\s*1/i });
+    tile.focus();
+    await user.keyboard('{Enter}');
+    expect(tile).toHaveAttribute('aria-pressed', 'true');
+  });
+});

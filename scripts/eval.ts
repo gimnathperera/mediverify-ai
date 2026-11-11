@@ -21,6 +21,7 @@ import {
   ensureReferenceIndexed,
   matchMonograph,
   retrievalQuery,
+  retrieveEvidence,
   runClaimedJob,
   type MedicationForCheck,
 } from '@mediverify/core';
@@ -149,7 +150,14 @@ try {
   }
 
   // ── 3. targeted within-monograph retrieval ──
-  const targeted = [];
+  type Recall = { recallAt3: number; recallAtK: number };
+  const targeted: (Recall & {
+    drug: string;
+    expectedFields: string[];
+    retrieved: (string | null)[];
+    byStrategy: Record<string, Recall>;
+    allFromMatchedMonograph: boolean;
+  })[] = [];
   for (const g of known) {
     const mono = matchMonograph(g.drug, monographs)!;
     const med: MedicationForCheck = {
@@ -167,18 +175,55 @@ try {
       indication: g.indication,
       isNewStart: true,
     };
-    const q = retrievalQuery(med);
-    const qv = await embedder.embedQuery(q);
-    const rows = await referencesRepo.searchMonographChunks(pool, mono.id, qv, q, K);
-    const labels = rows.map((r) => r.field_label);
+    // Three strategies on the same medication; Recall of the evidence fields each finding needs.
+    const legacyQuery = retrievalQuery(med);
+    const legacyRows = await referencesRepo.searchMonographChunks(
+      pool,
+      mono.id,
+      await embedder.embedQuery(legacyQuery),
+      legacyQuery,
+      100,
+    );
+    const vectorOnly = [...legacyRows]
+      .sort((a, b) => b.vector_score - a.vector_score)
+      .map((r) => r.field_label);
+    const weighted = legacyRows.map((r) => r.field_label); // previous 0.7·cosine + 0.3·text (SQL order)
+    const rrf = await retrieveEvidence({
+      med,
+      topK: K,
+      embed: (t) => embedder.embedQuery(t),
+      rank: async (embedding, t) =>
+        (await referencesRepo.rankMonographFieldChunks(pool, mono.id, embedding, t)).map((r) => ({
+          id: r.id,
+          monographId: r.monograph_id,
+          fieldLabel: r.field_label,
+          page: r.page_start,
+          text: r.text,
+          vectorScore: r.vector_score,
+          textScore: r.text_score,
+        })),
+    });
     const need = g.evidenceFields;
+    const recall = (labels: (string | null)[], k: number) =>
+      need.filter((f) => labels.slice(0, k).includes(f)).length / need.length;
+    const strategies = {
+      vector: vectorOnly,
+      weightedHybrid: weighted,
+      rrf: rrf.chunks.map((c) => c.fieldLabel),
+    };
     targeted.push({
       drug: g.drug,
       expectedFields: need,
-      retrieved: labels,
-      recallAt3: need.filter((f) => labels.slice(0, 3).includes(f)).length / need.length,
-      recallAtK: need.filter((f) => labels.includes(f)).length / need.length,
-      allFromMatchedMonograph: rows.every((r) => r.monograph_id === mono.id),
+      retrieved: strategies.rrf.slice(0, K),
+      recallAt3: recall(strategies.rrf, 3),
+      recallAtK: recall(strategies.rrf, K),
+      byStrategy: Object.fromEntries(
+        Object.entries(strategies).map(([name, labels]) => [
+          name,
+          { recallAt3: recall(labels, 3), recallAtK: recall(labels, K) },
+        ]),
+      ),
+      allFromMatchedMonograph: rrf.chunks.every((c) => c.monographId === mono.id),
     });
   }
 
@@ -347,6 +392,19 @@ try {
       meanRecallAt3: (targeted.reduce((s, t) => s + t.recallAt3, 0) / targeted.length).toFixed(3),
       meanRecallAtK: (targeted.reduce((s, t) => s + t.recallAtK, 0) / targeted.length).toFixed(3),
       allPassagesFromMatchedMonograph: targeted.every((t) => t.allFromMatchedMonograph),
+      ablation: Object.fromEntries(
+        (['vector', 'weightedHybrid', 'rrf'] as const).map((name) => [
+          name,
+          {
+            meanRecallAt3: (
+              targeted.reduce((s, t) => s + t.byStrategy[name]!.recallAt3, 0) / targeted.length
+            ).toFixed(3),
+            meanRecallAtK: (
+              targeted.reduce((s, t) => s + t.byStrategy[name]!.recallAtK, 0) / targeted.length
+            ).toFixed(3),
+          },
+        ]),
+      ),
       rows: targeted,
     },
     endToEnd: {
@@ -391,7 +449,12 @@ try {
       .filter((n) => !n.expected)
       .map((n) => `${n.query}→${n.top1} (${n.top1Score})`)
       .join(', ')}`,
-    `targeted retrieval: mean Recall@3 ${report.targetedRetrieval.meanRecallAt3}, Recall@${K} ${report.targetedRetrieval.meanRecallAtK}`,
+    `targeted retrieval (RRF): mean Recall@3 ${report.targetedRetrieval.meanRecallAt3}, Recall@${K} ${report.targetedRetrieval.meanRecallAtK}`,
+    `retrieval ablation (Recall@3 / Recall@${K}): ${Object.entries(
+      report.targetedRetrieval.ablation,
+    )
+      .map(([name, r]) => `${name} ${r.meanRecallAt3} / ${r.meanRecallAtK}`)
+      .join('; ')}`,
     `end-to-end (${outcome}, ${e2eMs} ms): status ${report.endToEnd.statusAccuracy}, conflict-field P ${report.endToEnd.conflictFieldPrecision} / R ${report.endToEnd.conflictFieldRecall}, citations valid ${report.endToEnd.citationValidity}, critical-point quotes valid ${report.endToEnd.criticalPointQuoteValidity}, distractor findings ${distractorFindings}`,
     `document discrepancies preserved: critical points ${report.endToEnd.discrepancyPreservedInCriticalPoints}, summary ${report.endToEnd.discrepancyPreservedInSummary}`,
     `extraction accuracy: ${Object.entries(extractionAcc)

@@ -1,4 +1,4 @@
-import type { JobStatus, StageStatus, VerificationStatus } from '@mediverify/shared';
+import type { JobStatus, StageStatus, VerificationStatus } from '@mediverify/shared/client';
 import {
   CheckCircle2,
   CircleDashed,

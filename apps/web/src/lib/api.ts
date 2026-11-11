@@ -3,13 +3,15 @@ import type {
   CitationDto,
   Credentials,
   DocumentDto,
+  DocumentPageDto,
+  DocumentStatusFilter,
   ErrorCode,
   JobDto,
   ReferenceDto,
   ResultsDto,
   UploadResponse,
   UserDto,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 
 export class ApiRequestError extends Error {
   constructor(
@@ -83,7 +85,13 @@ export const api = {
   references: () => request<ReferenceDto[]>('/references'),
   chunk: (referenceId: string, chunkId: string) =>
     request<ChunkPreview>(`/references/${referenceId}/chunks/${chunkId}`),
-  documents: () => request<DocumentDto[]>('/documents'),
+  documents: (p: { cursor?: string | undefined; status: DocumentStatusFilter; q: string }) => {
+    const qs = new URLSearchParams({ status: p.status });
+    if (p.q) qs.set('q', p.q);
+    if (p.cursor) qs.set('cursor', p.cursor);
+    return request<DocumentPageDto>(`/documents?${qs.toString()}`);
+  },
+  deleteDocument: (id: string) => request<void>(`/documents/${id}`, { method: 'DELETE' }),
   document: (id: string) => request<DocumentDto>(`/documents/${id}`),
   job: (id: string) => request<JobDto>(`/jobs/${id}`),
   results: (id: string) => request<ResultsDto>(`/jobs/${id}/results`),

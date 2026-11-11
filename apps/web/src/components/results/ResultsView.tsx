@@ -1,6 +1,6 @@
-import type { CitationDto, ResultsDto, VerificationStatus } from '@mediverify/shared';
+import type { CitationDto, ResultsDto, VerificationStatus } from '@mediverify/shared/client';
 import * as Tabs from '@radix-ui/react-tabs';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { CitationSheet } from '../CitationSheet';
 import { TAB_ITEM, TabIndicator, useTabIndicator } from '../ui/tab-indicator';
@@ -23,22 +23,26 @@ export function ResultsView({
   const [section, setSection] = useState<Section>('issues');
   const [filter, setFilter] = useState<VerificationStatus | null>(null);
   const [cite, setCite] = useState<{ c: CitationDto; heading: string } | null>(null);
-  const pendingFocus = useRef<string | null>(null);
+  // A request to show one medication's card; `n` makes repeated requests for the same card distinct.
+  const [focusRequest, setFocusRequest] = useState<{ id: string; n: number } | null>(null);
   const { listRef: tabList, indicatorRef: tabIndicator } = useTabIndicator<HTMLDivElement>(section);
 
-  // After switching to the verification tab from a critical point, move focus to that card.
+  // Scroll to and focus a medication card (from a critical point or the "Needs attention" panel).
   useEffect(() => {
-    const id = pendingFocus.current;
-    if (!id || section !== 'issues') return;
-    pendingFocus.current = null;
-    // The tab panel mounts after this commit; look the card up on the next frame.
+    if (!focusRequest || section !== 'issues') return;
+    // The tab panel may mount after this commit; look the card up on the next frame.
     const frame = requestAnimationFrame(() => {
-      const el = document.getElementById(verificationAnchor(id));
+      const el = document.getElementById(verificationAnchor(focusRequest.id));
       el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
       el?.focus({ preventScroll: true });
     });
     return () => cancelAnimationFrame(frame);
-  }, [section]);
+  }, [focusRequest, section]);
+  const showVerification = (id: string) => {
+    setFilter(null);
+    setSection('issues');
+    setFocusRequest((r) => ({ id, n: (r?.n ?? 0) + 1 }));
+  };
 
   const flagged = results.verifications.filter(
     (v) => v.status === 'contradicted' || v.status === 'unsupported',
@@ -73,6 +77,7 @@ export function ResultsView({
             filter={filter}
             onFilterChange={setFilter}
             onCite={(c, heading) => setCite({ c, heading })}
+            onShowVerification={showVerification}
           />
         </Tabs.Content>
         <Tabs.Content value="critical" className="mt-4">
@@ -80,11 +85,7 @@ export function ResultsView({
             points={results.criticalPoints}
             verifications={results.verifications}
             onShowPrimaryQuote={onShowPrimaryQuote}
-            onShowVerification={(id) => {
-              pendingFocus.current = id;
-              setFilter(null);
-              setSection('issues');
-            }}
+            onShowVerification={showVerification}
           />
         </Tabs.Content>
         <Tabs.Content value="meds" className="mt-4">

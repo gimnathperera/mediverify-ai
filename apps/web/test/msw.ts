@@ -5,12 +5,14 @@
  */
 import type {
   DocumentDto,
+  DocumentPageDto,
+  DocumentStatusFilter,
   JobDto,
   ReferenceDto,
   ResultsDto,
   StageDto,
   UserDto,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
 
@@ -75,11 +77,46 @@ export function failedJob(errorCode: string, errorMessage: string): JobDto {
   return { ...job, status: 'failed', currentStage: 'summarized', errorCode, errorMessage };
 }
 
+const statusOf = (d: DocumentDto): Exclude<DocumentStatusFilter, 'all'> =>
+  d.latestJob?.status === 'completed'
+    ? 'completed'
+    : d.latestJob?.status === 'failed'
+      ? 'failed'
+      : 'processing';
+
+/**
+ * Serve `docs` like the API: filtered by `status`/`q`, paged by `limit` with an opaque cursor
+ * (here simply the next offset), with per-status counts for the current search.
+ */
+export function documentsHandler(docs: DocumentDto[]) {
+  return http.get('/api/documents', ({ request }) => {
+    const url = new URL(request.url);
+    const status = (url.searchParams.get('status') ?? 'all') as DocumentStatusFilter;
+    const q = (url.searchParams.get('q') ?? '').toLowerCase();
+    const limit = Number(url.searchParams.get('limit') ?? 25);
+    const offset = Number(url.searchParams.get('cursor') ?? 0);
+    const matching = docs.filter((d) => !q || d.filename.toLowerCase().includes(q));
+    const filtered = matching.filter((d) => status === 'all' || statusOf(d) === status);
+    const page: DocumentPageDto = {
+      items: filtered.slice(offset, offset + limit),
+      nextCursor: offset + limit < filtered.length ? String(offset + limit) : null,
+      counts: {
+        all: matching.length,
+        processing: matching.filter((d) => statusOf(d) === 'processing').length,
+        completed: matching.filter((d) => statusOf(d) === 'completed').length,
+        failed: matching.filter((d) => statusOf(d) === 'failed').length,
+      },
+    };
+    return HttpResponse.json(page);
+  });
+}
+
 export const handlers = [
   http.get('/api/config', () => HttpResponse.json(fx.config())),
   http.get('/api/auth/me', () => HttpResponse.json(fx.user())),
   http.get('/api/references', () => HttpResponse.json(fx.references())),
-  http.get('/api/documents', () => HttpResponse.json([fx.document()])),
+  documentsHandler([fx.document()]),
+  http.delete('/api/documents/:id', () => new HttpResponse(null, { status: 204 })),
   http.get('/api/documents/:id', ({ params }) =>
     params.id === DOC_ID
       ? HttpResponse.json(fx.document())

@@ -1,4 +1,4 @@
-import type { MedicationDto } from '@mediverify/shared';
+import type { MedicationDto } from '@mediverify/shared/client';
 import { AlertTriangle, FileSearch } from 'lucide-react';
 import type * as React from 'react';
 

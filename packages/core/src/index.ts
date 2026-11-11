@@ -16,6 +16,7 @@ export * from './tasks/summary.js';
 export * from './text.js';
 export * from './verification/deterministic.js';
 export * from './verification/identity.js';
+export * from './verification/retrieval.js';
 export * from './verification/verify-medication.js';
 export * from './pipeline/providers.js';
 export * from './pipeline/reference-index.js';

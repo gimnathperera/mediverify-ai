@@ -1,4 +1,4 @@
-import type { CriticalPointDto, VerificationDto } from '@mediverify/shared';
+import type { CriticalPointDto, VerificationDto } from '@mediverify/shared/client';
 import { AlertTriangle, ArrowRight, FileSearch, Quote } from 'lucide-react';
 
 import { cn } from '../../lib/utils';

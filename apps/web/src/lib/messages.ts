@@ -11,6 +11,10 @@ export function jobFailureMessage(code: string | null, serverMessage: string | n
       return `The language model is unavailable${serverMessage ? ` (${serverMessage})` : ''}. Parsing results are kept; retry once the model is configured.`;
     case 'FIXTURE_NOT_FOUND':
       return 'Fixture mode only has model outputs for the bundled sample document. Upload resources/primary_document_medical.pdf, or configure OPENAI_API_KEY for real inference.';
+    case 'DOCUMENT_TOO_LARGE':
+      return `${serverMessage ?? 'The document is too large to process.'} Split it into smaller documents, or raise the limits (MAX_DOCUMENT_PAGES, MAX_DOCUMENT_CHARS, LLM_MAX_PROMPT_TOKENS).`;
+    case 'STAGE_TIMEOUT':
+      return 'A processing step took too long and was cancelled (no further model calls were made). Retry; if it keeps happening, raise STAGE_TIMEOUT_MS.';
     case 'PARSE_FAILED':
       return 'The document could not be read. Scanned (image-only) PDFs are not supported: there is no OCR.';
     default:

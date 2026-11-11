@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router';
 import { describe, expect, it } from 'vitest';
 
 import { RequireAuth } from '../src/App';
+import { api } from '../src/lib/api';
 import { AuthPage } from '../src/pages/AuthPage';
 
 import { expectNoA11yViolations } from './a11y';
@@ -102,5 +103,34 @@ describe('RequireAuth', () => {
       'href',
       '#main',
     );
+  });
+
+  it('sends the user to sign in when the session expires mid-use (any 401)', async () => {
+    let expired = false;
+    server.use(
+      http.get('/api/auth/me', () =>
+        expired ? apiError(401, 'UNAUTHENTICATED', 'Sign in') : HttpResponse.json(fx.user()),
+      ),
+      http.get('/api/documents', () =>
+        expired
+          ? apiError(401, 'UNAUTHENTICATED', 'Sign in')
+          : HttpResponse.json({
+              items: [],
+              nextCursor: null,
+              counts: { all: 0, processing: 0, completed: 0, failed: 0 },
+            }),
+      ),
+    );
+    const { client } = renderWithProviders(tree, { route: '/documents' });
+    expect(await screen.findByText('secret documents')).toBeInTheDocument();
+    expired = true;
+    // Any request failing with 401 (here a list refresh) marks the session as gone.
+    await client
+      .fetchQuery({
+        queryKey: ['documents', 'probe'],
+        queryFn: () => api.documents({ status: 'all', q: '' }),
+      })
+      .catch(() => undefined);
+    expect(await screen.findByText('login page')).toBeInTheDocument();
   });
 });

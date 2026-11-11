@@ -1,4 +1,10 @@
-import { STAGES, type DocumentDto, type JobStatus, type StageName } from '@mediverify/shared';
+import {
+  STAGES,
+  type DocumentDto,
+  type DocumentStatusFilter,
+  type JobStatus,
+  type StageName,
+} from '@mediverify/shared';
 
 import type { Queryable } from '../pool.js';
 
@@ -115,12 +121,91 @@ function toDocDto(r: DocRow): DocumentDto {
   };
 }
 
-export async function listDocumentsForOwner(q: Queryable, ownerId: string, limit = 50) {
-  const { rows } = await q.query<DocRow>(
-    `${DOC_SELECT} WHERE d.owner_id = $1 ORDER BY d.created_at DESC LIMIT $2`,
-    [ownerId, limit],
+/** Keyset cursor: the last row's exact created_at (Postgres text, µs precision) and id. */
+export function encodeCursor(createdAt: string, id: string) {
+  return Buffer.from(`${createdAt}|${id}`).toString('base64url');
+}
+
+export function decodeCursor(cursor: string): { createdAt: string; id: string } | null {
+  const [createdAt, id] = Buffer.from(cursor, 'base64url').toString().split('|');
+  if (!createdAt || !id || Number.isNaN(Date.parse(createdAt))) return null;
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  return { createdAt, id };
+}
+
+// Latest-job status groups used by the list filter ($3; 'processing' = queued, running or no job).
+const STATUS_SQL = `($3 = 'all'
+  OR ($3 = 'completed' AND job_status = 'completed')
+  OR ($3 = 'failed' AND job_status = 'failed')
+  OR ($3 = 'processing' AND (job_status IS NULL OR job_status IN ('queued', 'running'))))`;
+
+/**
+ * One page of a user's documents, newest first, filtered on the server by latest-job status and
+ * file name. Keyset pagination on (created_at, id) stays stable while new uploads arrive. `counts`
+ * are per status for the current search, so the filter badges match what paging will return.
+ */
+export async function listDocumentsPage(
+  q: Queryable,
+  ownerId: string,
+  opts: {
+    limit: number;
+    status: DocumentStatusFilter;
+    search?: string | undefined;
+    after?: { createdAt: string; id: string } | null;
+  },
+): Promise<{
+  items: DocumentDto[];
+  nextCursor: string | null;
+  counts: Record<DocumentStatusFilter, number>;
+}> {
+  const like = opts.search ? `%${opts.search.replace(/[\\%_]/g, '\\$&')}%` : null;
+  // The user's documents matching the search. Both queries pass $1 = owner, $2 = ILIKE pattern.
+  const base = `WITH base AS (
+      SELECT x.*, x.created_at::text AS cursor_ts FROM (${DOC_SELECT}
+       WHERE d.owner_id = $1 AND ($2::text IS NULL OR d.filename ILIKE $2)) x
+    )`;
+  const page = await q.query<DocRow & { cursor_ts: string }>(
+    `${base}
+     SELECT * FROM base
+      WHERE ${STATUS_SQL}
+        AND ($4::timestamptz IS NULL OR (created_at, id) < ($4::timestamptz, $5::uuid))
+      ORDER BY created_at DESC, id DESC
+      LIMIT $6`,
+    [
+      ownerId,
+      like,
+      opts.status,
+      opts.after?.createdAt ?? null,
+      opts.after?.id ?? null,
+      opts.limit + 1,
+    ],
   );
-  return rows.map(toDocDto);
+  const counts = await q.query<Record<DocumentStatusFilter, number>>(
+    `${base}
+     SELECT count(*)::int AS "all",
+            count(*) FILTER (WHERE job_status IS NULL OR job_status IN ('queued', 'running'))::int AS processing,
+            count(*) FILTER (WHERE job_status = 'completed')::int AS completed,
+            count(*) FILTER (WHERE job_status = 'failed')::int AS failed
+       FROM base`,
+    [ownerId, like],
+  );
+  const rows = page.rows.slice(0, opts.limit);
+  const last = rows.at(-1);
+  return {
+    items: rows.map(toDocDto),
+    nextCursor:
+      page.rows.length > opts.limit && last ? encodeCursor(last.cursor_ts, last.id) : null,
+    counts: counts.rows[0]!,
+  };
+}
+
+/** Delete a user's document; jobs, events and all results cascade. False if not theirs / absent. */
+export async function deleteDocumentForOwner(q: Queryable, documentId: string, ownerId: string) {
+  const { rowCount } = await q.query('DELETE FROM documents WHERE id = $1 AND owner_id = $2', [
+    documentId,
+    ownerId,
+  ]);
+  return rowCount === 1;
 }
 
 export async function getDocumentForOwner(q: Queryable, documentId: string, ownerId: string) {

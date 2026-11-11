@@ -79,6 +79,18 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.flatConfigs.recommended.rules,
+      // The root entry re-exports zod schemas; the browser uses the zod-free client entry.
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@mediverify/shared',
+              message: "Import from '@mediverify/shared/client' (zod-free) in the web app.",
+            },
+          ],
+        },
+      ],
     },
   },
   {

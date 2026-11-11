@@ -1,7 +1,11 @@
-import type { DocumentDto } from '@mediverify/shared';
-import { STAGE_LABELS } from '@mediverify/shared';
+import {
+  DOCUMENT_STATUS_FILTERS,
+  STAGE_LABELS,
+  type DocumentDto,
+  type DocumentStatusFilter,
+} from '@mediverify/shared/client';
 import { FileText, RefreshCw, Search, X } from 'lucide-react';
-import { useId, useMemo, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 
 import { DocumentListSkeleton } from '../components/skeletons';
@@ -9,50 +13,47 @@ import { JobStatusBadge } from '../components/status';
 import { Alert, Button, Card, EmptyState, Input } from '../components/ui/primitives';
 import { TabIndicator, useTabIndicator } from '../components/ui/tab-indicator';
 import { UploadPanel } from '../components/UploadPanel';
-import { useDocuments, useReferences, useUploadDocument, type PendingUpload } from '../lib/queries';
+import { useDebouncedValue, useOnVisible } from '../lib/hooks';
+import {
+  useDocumentPages,
+  useReferences,
+  useUploadDocument,
+  type PendingUpload,
+} from '../lib/queries';
 import { notify } from '../lib/toast';
 import { usePageTitle } from '../lib/usePageTitle';
 import { formatBytes, formatDateTime } from '../lib/utils';
 
-type StatusFilter = 'all' | 'processing' | 'completed' | 'failed';
-const FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'failed', label: 'Failed' },
-];
-
-function statusGroup(d: DocumentDto): Exclude<StatusFilter, 'all'> {
-  const s = d.latestJob?.status;
-  return s === 'completed' ? 'completed' : s === 'failed' ? 'failed' : 'processing';
-}
-
-/** Client-side filter over the loaded list (the API returns the latest 50). */
-export function filterDocuments(docs: DocumentDto[], query: string, status: StatusFilter) {
-  const q = query.trim().toLowerCase();
-  return docs.filter(
-    (d) =>
-      (status === 'all' || statusGroup(d) === status) &&
-      (!q || d.filename.toLowerCase().includes(q)),
-  );
-}
+const FILTER_LABEL: Record<DocumentStatusFilter, string> = {
+  all: 'All',
+  processing: 'Processing',
+  completed: 'Completed',
+  failed: 'Failed',
+};
 
 export function DocumentsPage() {
-  const docs = useDocuments();
   const refs = useReferences();
   const navigate = useNavigate();
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('all');
+  const [status, setStatus] = useState<DocumentStatusFilter>('all');
+  // Search and status filter run on the server; typing is debounced.
+  const q = useDebouncedValue(query.trim(), 250);
+  const docs = useDocumentPages({ status, q });
   const searchId = useId();
   const searchRef = useRef<HTMLInputElement>(null);
   const { listRef: filterList, indicatorRef: filterIndicator } =
     useTabIndicator<HTMLDivElement>(status);
   usePageTitle('Documents');
-  const all = docs.data;
-  const shown = useMemo(() => filterDocuments(all ?? [], query, status), [all, query, status]);
-  const countFor = (f: StatusFilter) =>
-    f === 'all' ? (all?.length ?? 0) : (all ?? []).filter((d) => statusGroup(d) === f).length;
+  const shown = docs.data?.pages.flatMap((p) => p.items) ?? [];
+  const counts = docs.data?.pages[0]?.counts;
+  const filtering = query !== '' || status !== 'all';
+  const hasDocuments = filtering || (counts?.all ?? 0) > 0;
+  const loadMore = () => {
+    if (docs.hasNextPage && !docs.isFetchingNextPage) void docs.fetchNextPage();
+  };
+  // Load the next page when the end of the list scrolls into view ("Load more" is the fallback).
+  const sentinel = useOnVisible<HTMLDivElement>(loadMore, Boolean(docs.hasNextPage));
   const upload = useUploadDocument((tempId, progress) =>
     setPending((p) => p.map((x) => (x.tempId === tempId ? { ...x, progress } : x))),
   );
@@ -114,7 +115,7 @@ export function DocumentsPage() {
             {!(docs.isFetching && !docs.isLoading) && <RefreshCw className="h-4 w-4" aria-hidden />}
           </Button>
         </div>
-        {(all?.length ?? 0) > 0 && (
+        {hasDocuments && (
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <label htmlFor={searchId} className="sr-only">
@@ -161,15 +162,15 @@ export function DocumentsPage() {
               aria-label="Filter by status"
             >
               <TabIndicator ref={filterIndicator} />
-              {FILTERS.map((f) => (
+              {DOCUMENT_STATUS_FILTERS.map((f) => (
                 <button
-                  key={f.value}
+                  key={f}
                   type="button"
-                  aria-pressed={status === f.value}
-                  onClick={() => setStatus(f.value)}
+                  aria-pressed={status === f}
+                  onClick={() => setStatus(f)}
                   className="relative z-10 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium text-slate-700 transition-colors duration-200 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-brand-600 aria-[pressed=false]:hover:bg-slate-100 aria-pressed:text-white"
                 >
-                  {f.label} <span className="tabular-nums">{countFor(f.value)}</span>
+                  {FILTER_LABEL[f]} <span className="tabular-nums">{counts?.[f] ?? 0}</span>
                 </button>
               ))}
             </div>
@@ -178,7 +179,11 @@ export function DocumentsPage() {
         {docs.isLoading && <DocumentListSkeleton />}
         {/* Scrolls inside its own area once the list is longer than the viewport. */}
         <div className="-m-1 max-h-[70dvh] overflow-y-auto overscroll-contain p-1 lg:max-h-[calc(100dvh-16rem)]">
-          <ul className="space-y-2" aria-live="polite" aria-label="Documents">
+          {/* Announce a short summary, not the whole list, when results change. */}
+          <p className="sr-only" aria-live="polite">
+            {docs.data && `${shown.length} of ${counts?.[status] ?? shown.length} documents shown`}
+          </p>
+          <ul className="space-y-2" aria-label="Documents">
             {pending.map((p) => (
               <li key={p.tempId}>
                 <Card className={p.error ? 'border-rose-300 p-4' : 'p-4'}>
@@ -234,8 +239,20 @@ export function DocumentsPage() {
               <DocumentRow key={d.id} d={d} />
             ))}
           </ul>
+          {docs.hasNextPage && (
+            <div ref={sentinel} className="flex justify-center py-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadMore}
+                loading={docs.isFetchingNextPage}
+              >
+                Load more
+              </Button>
+            </div>
+          )}
         </div>
-        {(all?.length ?? 0) > 0 && shown.length === 0 && (
+        {docs.data && filtering && shown.length === 0 && (
           <EmptyState icon={<Search className="h-8 w-8" />} title="No documents match">
             <Button
               variant="link"
@@ -248,7 +265,7 @@ export function DocumentsPage() {
             </Button>
           </EmptyState>
         )}
-        {docs.data?.length === 0 && pending.length === 0 && (
+        {docs.data && !filtering && counts?.all === 0 && pending.length === 0 && (
           <EmptyState icon={<FileText className="h-8 w-8" />} title="No documents yet">
             Upload a discharge summary (PDF or DOCX) to start a verification job.
           </EmptyState>

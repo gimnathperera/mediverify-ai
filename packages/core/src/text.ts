@@ -46,6 +46,26 @@ export function quoteAppearsIn(quote: string | null | undefined, source: string)
   return true;
 }
 
+/**
+ * Drug name without strength, dosage form or parenthetical generic: "Pravoxil 20 mg tablet" and
+ * "Pravoxil (simvastatin)" → "Pravoxil". Used for identity matching (still exact/alias only).
+ */
+export function drugNameCore(name: string): string {
+  return name
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s\d[\d.,]*\s*(mg|mcg|µg|g|ml|units?|iu|%)\b.*$/i, '')
+    .replace(
+      /\s+(tablets?|tabs?|capsules?|caps?|oral solution|solution|suspension|injection|inj)\.?$/i,
+      '',
+    )
+    .trim();
+}
+
+/** Identity key: the normalized core name (strength/form stripped). */
+export function drugIdentityKey(name: string): string {
+  return normalizeDrugName(drugNameCore(name));
+}
+
 /** Identity key for drug names: case/space/punctuation-insensitive, hyphen-preserving. */
 export function normalizeDrugName(name: string): string {
   return name

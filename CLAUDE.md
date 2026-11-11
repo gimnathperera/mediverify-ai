@@ -89,7 +89,9 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   (breaks `pg`). Integration tests use DB `mediverify_test` (created + migrated by `tests/helpers/global-setup.ts`).
 - Fixture LLM outputs are keyed by `sha256(document).slice(0,16)` under `fixtures/llm/<prefix>/`; they are hand-authored.
 - nginx must serve `.mjs` as JavaScript (pdf.js worker). The worker warms the embedding model before claiming jobs.
-- Status (2026-11-10): GitHub Actions green on `main`; 38 unit + 59 web + 43 integration + 6 Playwright pass locally;
+- Status (2026-11-11): 76 unit + 69 web + 53 integration + 6 Playwright pass locally (coverage 85%); the hardening
+  sprint (migration 0002, RRF retrieval, status reasons, limits/cancellation/usage, pagination, delete, retention) has
+  not run in GitHub Actions yet; a post-sprint live eval (gpt-5.4-mini) passed 6/6 with 18k tokens recorded;
   live OpenAI eval (`gpt-5.4-mini`) ran locally: 6/6 statuses, 100% citations; results in `docs/evaluation.md`.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
@@ -114,6 +116,12 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   segmented filters; items use `TAB_ITEM`), `LoadingRegion` + shaped skeletons in `components/skeletons.tsx`
   (no page-level spinners; `RequireAuth` takes the page's `skeleton`). Animations honour prefers-reduced-motion;
   the Playwright axe spec waits for finite animations before scanning.
+- Retrieval: `retrieveEvidence` (packages/core/src/verification/retrieval.ts) = per-aspect queries + RRF over vector and
+  OR-tsquery rankings (`rankMonographFieldChunks`); the eval's ablation compares it with vector-only and the old mix.
+- LLM calls are scoped per stage by the runner (`scopeLlm`: AbortSignal + stage logger + usage sink); a stage timeout
+  aborts model calls and LibreOffice; usage is summed into `jobs.llm_usage` (cost only if `LLM_PRICE_*` set).
+- Web imports `@mediverify/shared/client` only (zod-free; ESLint enforces it). Document list = `useDocumentPages`
+  (server-side paging/filter); API list returns `{items, nextCursor, counts}`.
 - Every long-lived pg `Client` (LISTEN) needs an `error` handler + reconnect (API `EventsHub`, worker
   `queue-listener.ts`); an idle client that loses its connection otherwise crashes the process.
 - Docker Desktop's VM disk is small (32 GB here); image rebuilds fill it. `docker builder prune` only with the user's OK.
@@ -125,16 +133,23 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
    chunks are separate kinds and are never treated as a monograph.
 2. **Identity gate first**: normalized exact name or explicit alias match against `reference_monographs`. Fuzzy/vector
    similarity NEVER establishes identity (Pranixol ≠ Pravoxil). Similar names may be shown as "not matched" only.
-3. **Statuses**: `supported` (monograph exists, all checked parameters consistent) · `contradicted` (≥1 parameter conflicts) ·
-   `unsupported` (no monograph in this reference — a coverage gap, not "unsafe") · `incomplete` (parsing/indexing/
-   retrieval/model failure — never mislabel as unsupported).
+3. **Statuses** (`classifyVerification` in verify-medication.ts): `contradicted` (≥1 field conflicts) · `supported` (dose
+   confirmed consistent, route/frequency consistent or unconstrained, every other field consistent or `not_constrained`)
+   · `unsupported` (no monograph — a coverage gap, not "unsafe") · `incomplete` (anything not confirmed: missing value,
+   insufficient evidence, rejected model claim, retrieval/model failure — never mislabel as unsupported or supported).
+   Every non-decisive finding carries a `reason` (`not_constrained | not_stated | insufficient_evidence | unverified`).
+   One medication's model failure makes only that medication incomplete.
 4. Compare dose, unit, route, frequency, timing, duration, indication against the **matched** monograph — not just name
    existence or max dose. New start above standard dose without documented titration conflicts with a titration schedule.
 5. Deterministic checks for numeric/time constraints; the LLM interprets nuance and explains, using only retrieved passages.
    Monograph rules are parsed **deterministically at index time** (`packages/core/src/rules/monograph-rules.ts`), each with
    a verbatim quote, stored in `reference_monographs.rules` — no LLM in reference indexing.
    A deterministic conflict with a validated quote is authoritative; an LLM-only conflict counts only if its quote validates
-   (and, for indication, only if the quote states an exclusion/restriction — absence from the list is not a conflict).
+   (≥3-word quote); for indication it must also state an exclusion/restriction AND the excluded condition must be
+   documented for this patient (`exclusionApplies`) — otherwise `insufficient_evidence`, never a conflict.
+   "New start" (titration rule) needs a validated document quote; without one the dose is `insufficient_evidence`.
+   Parsers never collapse ranges/combination doses; mass units convert (g/mg/mcg); timing compares time of day and
+   meal relation separately (`compareTimings`).
 6. **Quote validation**: every citation's quote must appear (whitespace/quote-normalized) in the cited chunk, and the chunk
    must belong to the matched monograph (or the coverage note for unsupported). Invalid evidence is dropped/marked, never shown as valid.
 7. Summary and critical points use **only the primary document** (table rows are shown to the model as `a | b`; quote

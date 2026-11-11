@@ -1,4 +1,4 @@
-import { DEMO_DISCLAIMER } from '@mediverify/shared';
+import { DEMO_DISCLAIMER } from '@mediverify/shared/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, LogOut, ShieldCheck } from 'lucide-react';
 import { useState, type ReactNode } from 'react';

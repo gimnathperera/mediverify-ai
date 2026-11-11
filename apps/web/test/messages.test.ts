@@ -11,10 +11,13 @@ describe('jobFailureMessage', () => {
       /only has model outputs for the bundled sample/,
     );
     expect(jobFailureMessage('PARSE_FAILED', null)).toMatch(/no OCR/);
+    expect(
+      jobFailureMessage('DOCUMENT_TOO_LARGE', 'The document has 80 pages; the limit is 50.'),
+    ).toMatch(/80 pages.*Split it/);
     expect(jobFailureMessage('MODEL_UNAVAILABLE', 'timeout')).toMatch(/unavailable \(timeout\)/);
   });
   it('falls back to the server message, then to a generic one', () => {
-    expect(jobFailureMessage('STAGE_TIMEOUT', 'Stage exceeded 120 s')).toBe('Stage exceeded 120 s');
+    expect(jobFailureMessage('WORKER_LOST', 'Worker lost its lease')).toBe('Worker lost its lease');
     expect(jobFailureMessage(null, null)).toMatch(/unknown reason/);
   });
 });

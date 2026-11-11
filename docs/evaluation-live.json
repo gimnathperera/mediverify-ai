@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T15:08:57.306Z",
+  "generatedAt": "2026-11-11T02:53:47.287Z",
   "llm": {
     "provider": "openai",
     "model": "gpt-5.4-mini",
@@ -179,38 +179,80 @@
     ]
   },
   "targetedRetrieval": {
-    "meanRecallAt3": "0.833",
+    "meanRecallAt3": "0.933",
     "meanRecallAtK": "1.000",
     "allPassagesFromMatchedMonograph": true,
+    "ablation": {
+      "vector": {
+        "meanRecallAt3": "0.933",
+        "meanRecallAtK": "1.000"
+      },
+      "weightedHybrid": {
+        "meanRecallAt3": "0.833",
+        "meanRecallAtK": "1.000"
+      },
+      "rrf": {
+        "meanRecallAt3": "0.933",
+        "meanRecallAtK": "1.000"
+      }
+    },
     "rows": [
       {
         "drug": "Velantine",
         "expectedFields": ["Standard adult dose"],
         "retrieved": [
-          "Standard adult dose",
           "Maximum dose",
+          "Standard adult dose",
           "Indication",
           "Common adverse effects",
           "Monitoring",
-          "Drug class"
+          "Contraindications"
         ],
         "recallAt3": 1,
         "recallAtK": 1,
+        "byStrategy": {
+          "vector": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "weightedHybrid": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "rrf": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          }
+        },
         "allFromMatchedMonograph": true
       },
       {
         "drug": "Cordizem-XR",
         "expectedFields": ["Standard adult dose"],
         "retrieved": [
+          "Significant interactions",
+          "Prescribing notes",
           "Standard adult dose",
           "Maximum dose",
-          "Indication",
-          "Prescribing notes",
-          "Significant interactions",
-          "Monitoring"
+          "Monitoring",
+          "Indication"
         ],
         "recallAt3": 1,
         "recallAtK": 1,
+        "byStrategy": {
+          "vector": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "weightedHybrid": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "rrf": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          }
+        },
         "allFromMatchedMonograph": true
       },
       {
@@ -218,44 +260,86 @@
         "expectedFields": ["Prescribing notes", "Standard adult dose"],
         "retrieved": [
           "Standard adult dose",
+          "Prescribing notes",
+          "Significant interactions",
           "Maximum dose",
           "Contraindications",
-          "Prescribing notes",
-          "Monitoring",
-          "Common adverse effects"
+          "Indication"
         ],
-        "recallAt3": 0.5,
+        "recallAt3": 1,
         "recallAtK": 1,
+        "byStrategy": {
+          "vector": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "weightedHybrid": {
+            "recallAt3": 0.5,
+            "recallAtK": 1
+          },
+          "rrf": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          }
+        },
         "allFromMatchedMonograph": true
       },
       {
         "drug": "Etrazolam",
         "expectedFields": ["Prescribing notes"],
         "retrieved": [
+          "Prescribing notes",
           "Standard adult dose",
           "Maximum dose",
-          "Prescribing notes",
           "Indication",
           "Monitoring",
-          "Common adverse effects"
+          "Contraindications"
         ],
         "recallAt3": 1,
         "recallAtK": 1,
+        "byStrategy": {
+          "vector": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "weightedHybrid": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          },
+          "rrf": {
+            "recallAt3": 1,
+            "recallAtK": 1
+          }
+        },
         "allFromMatchedMonograph": true
       },
       {
         "drug": "Quintaxin",
         "expectedFields": ["Standard adult dose", "Prescribing notes", "Monitoring"],
         "retrieved": [
+          "Prescribing notes",
           "Standard adult dose",
           "Maximum dose",
-          "Prescribing notes",
           "Monitoring",
           "Indication",
-          "Drug class"
+          "Contraindications"
         ],
         "recallAt3": 0.6666666666666666,
         "recallAtK": 1,
+        "byStrategy": {
+          "vector": {
+            "recallAt3": 0.6666666666666666,
+            "recallAtK": 1
+          },
+          "weightedHybrid": {
+            "recallAt3": 0.6666666666666666,
+            "recallAtK": 1
+          },
+          "rrf": {
+            "recallAt3": 0.6666666666666666,
+            "recallAtK": 1
+          }
+        },
         "allFromMatchedMonograph": true
       }
     ]
@@ -263,7 +347,7 @@
   "endToEnd": {
     "outcome": "completed",
     "jobError": null,
-    "durationMs": 30862,
+    "durationMs": 27597,
     "medicationsExtracted": 6,
     "statusAccuracy": "100.0%",
     "conflictFieldPrecision": "100.0%",
@@ -280,7 +364,7 @@
     "citationValidity": "100.0%",
     "decisiveFindingsWithValidEvidence": "100.0%",
     "criticalPointQuoteValidity": "100.0%",
-    "criticalPoints": 11,
+    "criticalPoints": 14,
     "discrepancyPreservedInCriticalPoints": "100.0%",
     "discrepancyPreservedInSummary": "100.0%",
     "discrepancies": [

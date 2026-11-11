@@ -1,4 +1,4 @@
-import type { JobEventDto } from '@mediverify/shared';
+import type { JobEventDto } from '@mediverify/shared/client';
 
 /** Minimal EventSource stand-in: tests push persisted job events and observe the UI. */
 export class FakeEventSource {
@@ -37,5 +37,11 @@ export class FakeEventSource {
 
   end() {
     for (const fn of this.listeners.get('end') ?? []) fn();
+  }
+
+  /** The browser gave up (e.g. a non-200 response): readyState CLOSED, then onerror. */
+  fail() {
+    this.readyState = FakeEventSource.CLOSED;
+    this.onerror?.();
   }
 }

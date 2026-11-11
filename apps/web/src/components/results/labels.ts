@@ -1,9 +1,10 @@
 import type {
   CriticalPointDto,
   FindingDto,
+  FindingReason,
   MedicationDto,
   VerificationStatus,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 
 export const CATEGORY_LABEL: Record<CriticalPointDto['category'], string> = {
   serious_side_effect: 'Side effect to report',
@@ -25,6 +26,25 @@ export const FIELD_LABEL: Record<FindingDto['field'], string> = {
   duration: 'Duration',
   indication: 'Indication',
 };
+
+/** Why a check is not decisive (FINDING_REASONS), in reviewer language. */
+export const REASON_LABEL: Record<FindingReason, string> = {
+  not_constrained: 'no rule in the formulary',
+  not_stated: 'not stated in the prescription',
+  insufficient_evidence: 'insufficient evidence',
+  unverified: 'model claim not verifiable',
+};
+
+/** Fields shown in each card's parameter strip, in prescribing order. */
+export const STRIP_FIELDS: FindingDto['field'][] = [
+  'dose',
+  'unit',
+  'route',
+  'frequency',
+  'timing',
+  'duration',
+  'indication',
+];
 
 export const VERDICT_STYLE: Record<FindingDto['verdict'], { label: string; cls: string }> = {
   conflict: { label: 'Conflict', cls: 'bg-rose-100 text-rose-800' },

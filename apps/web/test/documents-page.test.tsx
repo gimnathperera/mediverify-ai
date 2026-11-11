@@ -1,12 +1,12 @@
-import type { DocumentDto } from '@mediverify/shared';
+import type { DocumentDto } from '@mediverify/shared/client';
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 
-import { DocumentsPage, filterDocuments } from '../src/pages/DocumentsPage';
+import { DocumentsPage } from '../src/pages/DocumentsPage';
 
 import { expectNoA11yViolations } from './a11y';
-import { apiError, fx, server } from './msw';
+import { apiError, documentsHandler, fx, server } from './msw';
 import { renderWithProviders } from './render';
 
 function doc(filename: string, status: 'completed' | 'failed' | 'running'): DocumentDto {
@@ -35,22 +35,9 @@ const pdf = () =>
     type: 'application/pdf',
   });
 
-describe('filterDocuments', () => {
-  it('matches file name case-insensitively and groups queued/running as processing', () => {
-    expect(filterDocuments(LIST, 'DISCHARGE', 'all').map((d) => d.filename)).toEqual([
-      'discharge-a.pdf',
-      'discharge-b.pdf',
-    ]);
-    expect(filterDocuments(LIST, '', 'processing').map((d) => d.filename)).toEqual([
-      'summary-c.docx',
-    ]);
-    expect(filterDocuments(LIST, 'nothing', 'all')).toEqual([]);
-  });
-});
-
 describe('DocumentsPage', () => {
   it('lists documents with status, stage and failure reason', async () => {
-    server.use(http.get('/api/documents', () => HttpResponse.json(LIST)));
+    server.use(documentsHandler(LIST));
     renderWithProviders(<DocumentsPage />);
     const list = screen.getByRole('list', { name: 'Documents' });
     const rows = await within(list).findAllByRole('link');
@@ -62,22 +49,37 @@ describe('DocumentsPage', () => {
   });
 
   it('filters by search text and status, and offers to clear an empty result', async () => {
-    server.use(http.get('/api/documents', () => HttpResponse.json(LIST)));
+    server.use(documentsHandler(LIST));
     const { user } = renderWithProviders(<DocumentsPage />);
     const list = screen.getByRole('list', { name: 'Documents' });
     await within(list).findAllByRole('link');
 
+    // Filtering happens on the server: the list and counts come back from the API.
     await user.click(screen.getByRole('button', { name: /failed 1/i }));
-    expect(within(list).getAllByRole('link')).toHaveLength(1);
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(1));
 
     await user.type(screen.getByRole('searchbox', { name: /search documents/i }), 'zzz');
-    expect(within(list).queryAllByRole('link')).toHaveLength(0);
+    expect(await screen.findByText('No documents match')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /clear search and filters/i }));
-    expect(within(list).getAllByRole('link')).toHaveLength(3);
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
+  });
+
+  it('loads further pages on demand', async () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      doc(`report-${String(i).padStart(2, '0')}.pdf`, 'completed'),
+    );
+    server.use(documentsHandler(many));
+    const { user } = renderWithProviders(<DocumentsPage />);
+    const list = screen.getByRole('list', { name: 'Documents' });
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(25));
+    expect(screen.getByText('25 of 30 documents shown')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(30));
+    expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
   });
 
   it('clears the search with its button or Escape, keeping focus in the field', async () => {
-    server.use(http.get('/api/documents', () => HttpResponse.json(LIST)));
+    server.use(documentsHandler(LIST));
     const { user } = renderWithProviders(<DocumentsPage />);
     const list = screen.getByRole('list', { name: 'Documents' });
     await within(list).findAllByRole('link');
@@ -85,33 +87,28 @@ describe('DocumentsPage', () => {
     expect(screen.queryByRole('button', { name: 'Clear search' })).not.toBeInTheDocument();
 
     await user.type(search, 'summary');
-    expect(within(list).getAllByRole('link')).toHaveLength(1);
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(1));
     await user.click(screen.getByRole('button', { name: 'Clear search' }));
     expect(search).toHaveValue('');
     expect(search).toHaveFocus();
-    expect(within(list).getAllByRole('link')).toHaveLength(3);
+    await waitFor(() => expect(within(list).getAllByRole('link')).toHaveLength(3));
 
     await user.type(search, 'zzz{Escape}');
     expect(search).toHaveValue('');
   });
 
   it('shows an empty state for a new user', async () => {
-    server.use(http.get('/api/documents', () => HttpResponse.json([])));
+    server.use(documentsHandler([]));
     renderWithProviders(<DocumentsPage />);
     expect(await screen.findByText('No documents yet')).toBeInTheDocument();
     expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
   });
 
   it('shows a retryable error when the list cannot load', async () => {
-    let fail = true;
-    server.use(
-      http.get('/api/documents', () =>
-        fail ? apiError(500, 'INTERNAL', 'Database unavailable') : HttpResponse.json(LIST),
-      ),
-    );
+    server.use(http.get('/api/documents', () => apiError(500, 'INTERNAL', 'Database unavailable')));
     const { user } = renderWithProviders(<DocumentsPage />);
     expect(await screen.findByRole('alert')).toHaveTextContent(/database unavailable/i);
-    fail = false;
+    server.use(documentsHandler(LIST)); // the server recovers
     await user.click(screen.getByRole('button', { name: /^retry$/i }));
     expect(await screen.findAllByRole('link')).toHaveLength(3);
   });
@@ -149,7 +146,7 @@ describe('DocumentsPage', () => {
   });
 
   it('has no detectable accessibility violations', async () => {
-    server.use(http.get('/api/documents', () => HttpResponse.json(LIST)));
+    server.use(documentsHandler(LIST));
     const { container } = renderWithProviders(<DocumentsPage />);
     await screen.findByText('discharge-a.pdf');
     await expectNoA11yViolations(container);

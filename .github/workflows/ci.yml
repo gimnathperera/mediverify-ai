@@ -133,6 +133,9 @@ jobs:
     name: Live-model golden evaluation (manual)
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      # Secrets can't be used in `if:` directly; expose whether the key exists instead.
+      HAS_OPENAI_KEY: ${{ secrets.OPENAI_API_KEY != '' }}
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -145,9 +148,13 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: '${{ env.NODE_VERSION }}', cache: pnpm }
       - run: pnpm install --frozen-lockfile
-      - run: pnpm eval:live -- --out eval-live.json
+      - if: env.HAS_OPENAI_KEY != 'true'
+        run: echo "::notice::OPENAI_API_KEY repository secret is not set; skipping the live evaluation."
+      - if: env.HAS_OPENAI_KEY == 'true'
+        run: pnpm eval:live -- --out eval-live.json
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           DATABASE_URL: postgres://mediverify:mediverify@localhost:55432/mediverify
-      - uses: actions/upload-artifact@v7
+      - if: env.HAS_OPENAI_KEY == 'true'
+        uses: actions/upload-artifact@v7
         with: { name: eval-live, path: eval-live.json }

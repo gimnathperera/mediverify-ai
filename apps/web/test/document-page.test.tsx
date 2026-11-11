@@ -1,4 +1,4 @@
-import type { JobEventDto } from '@mediverify/shared';
+import type { JobEventDto } from '@mediverify/shared/client';
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
@@ -116,5 +116,33 @@ describe('DocumentPage', () => {
     const { container } = open();
     await screen.findByRole('heading', { name: 'Summary' });
     await expectNoA11yViolations(container);
+  });
+
+  it('deletes the document after confirmation and returns to the list', async () => {
+    let deleted = false;
+    server.use(
+      http.delete('/api/documents/:id', () => {
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const { user } = open();
+    await screen.findByRole('heading', { name: 'Summary' });
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Delete this document?' });
+    expect(dialog).toHaveAccessibleDescription(/cannot be undone/);
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/documents$/));
+    expect(deleted).toBe(true);
+  });
+
+  it('reconnects when the browser gives up on the live stream', async () => {
+    server.use(http.get('/api/jobs/:id', () => HttpResponse.json(runningJob('embedded', '100'))));
+    open();
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
+    act(() => FakeEventSource.instances[0]!.fail());
+    expect(await screen.findByText(/live updates unavailable/i)).toBeInTheDocument();
+    // A new stream is opened after a short backoff (no page refresh needed).
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(2), { timeout: 3000 });
   });
 });

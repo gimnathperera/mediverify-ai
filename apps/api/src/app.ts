@@ -75,7 +75,14 @@ export async function createApp(deps: AppDeps): Promise<INestApplication> {
   const app = await NestFactory.create(AppModule.forRoot(deps), {
     logger: ['error', 'warn'],
     bodyParser: true,
+    // Close open SSE streams on shutdown instead of waiting for them (they can last an hour).
+    forceCloseConnections: true,
   });
+  // Behind nginx / the Vite proxy: use X-Forwarded-For so per-IP rate limits see real clients.
+  (app.getHttpAdapter().getInstance() as { set(k: string, v: unknown): void }).set(
+    'trust proxy',
+    deps.config.trustProxy,
+  );
   app.setGlobalPrefix('api');
   app.use(cookieParser());
   app.use(accessLog(deps.logger));
@@ -85,6 +92,6 @@ export async function createApp(deps: AppDeps): Promise<INestApplication> {
     next();
   });
   app.useGlobalFilters(new AllExceptionsFilter(deps.logger));
-  app.enableShutdownHooks();
+  // Shutdown is driven by main.ts (one path: close the app, then the pool).
   return app;
 }

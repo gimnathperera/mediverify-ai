@@ -1,7 +1,9 @@
-import type { FieldVerdict, VerifiedField } from '@mediverify/shared';
+import type { FieldVerdict, FindingReason, VerifiedField } from '@mediverify/shared';
 
 import type { Evidence, MonographRules } from '../rules/monograph-rules.js';
 import {
+  compareTimings,
+  convertDose,
   FREQUENCY_LABEL,
   FREQUENCY_PER_DAY,
   TIMING_LABEL,
@@ -36,6 +38,8 @@ export interface DetFinding {
   confidence: 'high' | 'medium' | 'low';
   /** Ordered evidence; contiguous same-field quotes are joined when the joined text validates. */
   evidence: Evidence[];
+  /** Why the verdict is not decisive (see FINDING_REASONS); absent for consistent/conflict. */
+  reason?: FindingReason;
 }
 
 const fmt = (v: number, u: string | null) => `${v} ${u ?? ''}`.trim();
@@ -59,25 +63,32 @@ export function deterministicChecks(med: MedicationForCheck, rules: MonographRul
 
   // ── unit
   if (std && med.doseUnit) {
+    const convertible =
+      med.doseValue !== null && convertDose(med.doseValue, med.doseUnit, std.unit) !== null;
     out.push(
-      med.doseUnit === std.unit
+      med.doseUnit === std.unit || convertible
         ? {
             field: 'unit',
             verdict: 'consistent',
             prescribed: med.doseUnit,
             constraint: std.unit,
-            explanation: `Dose unit (${med.doseUnit}) matches the monograph.`,
+            explanation:
+              med.doseUnit === std.unit
+                ? `Dose unit (${med.doseUnit}) matches the monograph.`
+                : `Dose unit (${med.doseUnit}) converts to the monograph's ${std.unit}; compared after conversion.`,
             confidence: 'high',
             evidence: [std.evidence],
           }
         : {
+            // e.g. mL vs mg: a different formulation, not by itself a prescribing error.
             field: 'unit',
-            verdict: 'conflict',
+            verdict: 'unknown',
             prescribed: med.doseUnit,
             constraint: std.unit,
-            explanation: `Prescribed unit "${med.doseUnit}" differs from the monograph's "${std.unit}".`,
-            confidence: 'high',
+            explanation: `Prescribed unit "${med.doseUnit}" cannot be converted to the monograph's "${std.unit}"; the dose cannot be compared.`,
+            confidence: 'low',
             evidence: [std.evidence],
+            reason: 'insufficient_evidence',
           },
     );
   }
@@ -86,7 +97,9 @@ export function deterministicChecks(med: MedicationForCheck, rules: MonographRul
   out.push(checkDose(med, rules, prescribedDose));
 
   // ── route
-  if (std?.route && med.route) {
+  if (!std?.route || !med.route)
+    out.push(gap('route', med.route, !std?.route, 'route', std ? [std.evidence] : []));
+  else {
     const same = (med.route as Route) === std.route;
     out.push({
       field: 'route',
@@ -102,7 +115,28 @@ export function deterministicChecks(med: MedicationForCheck, rules: MonographRul
   }
 
   // ── frequency
-  if (std?.frequency && med.frequency && med.frequency !== 'as_needed') {
+  if (!std?.frequency || !med.frequency)
+    out.push(
+      gap(
+        'frequency',
+        med.frequencyRaw ?? med.frequency,
+        !std?.frequency,
+        'frequency',
+        std ? [std.evidence] : [],
+      ),
+    );
+  else if (med.frequency === 'as_needed')
+    out.push({
+      field: 'frequency',
+      verdict: 'unknown',
+      prescribed: med.frequencyRaw ?? med.frequency,
+      constraint: FREQUENCY_LABEL[std.frequency],
+      explanation: `Prescribed as needed; the monograph specifies ${FREQUENCY_LABEL[std.frequency]}, so the schedule cannot be compared.`,
+      confidence: 'low',
+      evidence: [std.evidence],
+      reason: 'insufficient_evidence',
+    });
+  else {
     const same = (med.frequency as Frequency) === std.frequency;
     out.push({
       field: 'frequency',
@@ -132,8 +166,35 @@ export function deterministicChecks(med: MedicationForCheck, rules: MonographRul
     explanation: 'Indication compatibility is assessed by the model against the monograph text.',
     confidence: 'low',
     evidence: rules.indication ? [rules.indication.evidence] : [],
+    reason: rules.indication ? 'insufficient_evidence' : 'not_constrained',
   });
   return out;
+}
+
+/**
+ * A field that can't be compared: the monograph sets no rule for it (`not_constrained`) or the
+ * prescription doesn't state it (`not_stated`). The monograph side is checked first: with no rule
+ * there is nothing to verify, whatever the prescription says.
+ */
+function gap(
+  field: VerifiedField,
+  prescribed: string | null,
+  noRule: boolean,
+  label: string,
+  evidence: Evidence[],
+): DetFinding {
+  return {
+    field,
+    verdict: 'not_addressed',
+    prescribed,
+    constraint: null,
+    explanation: noRule
+      ? `The monograph does not specify a ${label}.`
+      : `The prescription does not state a ${label}.`,
+    confidence: 'medium',
+    evidence: noRule ? [] : evidence,
+    reason: noRule ? 'not_constrained' : 'not_stated',
+  };
 }
 
 function checkDose(
@@ -148,9 +209,12 @@ function checkDose(
       ...base,
       verdict: 'unknown',
       constraint: null,
-      explanation: 'Dose not stated in the prescription.',
+      explanation: med.doseRaw
+        ? `Dose "${med.doseRaw}" is a range or combination and cannot be compared to a single value.`
+        : 'Dose not stated in the prescription.',
       confidence: 'low',
       evidence: [],
+      reason: med.doseRaw ? 'insufficient_evidence' : 'not_stated',
     };
   if (!std)
     return {
@@ -160,24 +224,27 @@ function checkDose(
       explanation: 'Monograph standard dose could not be parsed deterministically.',
       confidence: 'low',
       evidence: [],
+      reason: 'insufficient_evidence',
     };
-  if (med.doseUnit && med.doseUnit !== std.unit)
+  // Compare in the monograph's unit (mass units convert: 0.5 g = 500 mg).
+  const dose = med.doseUnit ? convertDose(med.doseValue, med.doseUnit, std.unit) : med.doseValue;
+  if (dose === null)
     return {
       ...base,
       verdict: 'unknown',
       constraint: fmt(std.value, std.unit),
-      explanation: 'Units differ; dose cannot be compared numerically.',
+      explanation: 'Units differ and cannot be converted; dose cannot be compared numerically.',
       confidence: 'low',
       evidence: [std.evidence],
+      reason: 'insufficient_evidence',
     };
-  const dose = med.doseValue;
   const max = rules.maxDose;
   if (max && dose > max.value)
     return {
       ...base,
       verdict: 'conflict',
       constraint: `maximum ${fmt(max.value, max.unit)} per dose`,
-      explanation: `Prescribed ${fmt(dose, med.doseUnit)} exceeds the monograph maximum of ${fmt(max.value, max.unit)}.`,
+      explanation: `Prescribed ${fmt(dose, std.unit)} exceeds the monograph maximum of ${fmt(max.value, max.unit)}.`,
       confidence: 'high',
       evidence: [max.evidence],
     };
@@ -187,7 +254,7 @@ function checkDose(
       ...base,
       verdict: 'conflict',
       constraint: `maximum ${fmt(rules.maxDailyDose.value, rules.maxDailyDose.unit)} per day`,
-      explanation: `Total daily dose ${fmt(dose * perDay, med.doseUnit)} exceeds the monograph's maximum daily dose of ${fmt(rules.maxDailyDose.value, rules.maxDailyDose.unit)}.`,
+      explanation: `Total daily dose ${fmt(dose * perDay, std.unit)} exceeds the monograph's maximum daily dose of ${fmt(rules.maxDailyDose.value, rules.maxDailyDose.unit)}.`,
       confidence: 'high',
       evidence: [rules.maxDailyDose.evidence],
     };
@@ -218,6 +285,7 @@ function checkDose(
       explanation: `Dose is below the standard dose and is not a reduced dose listed in the monograph.`,
       confidence: 'low',
       evidence: [std.evidence],
+      reason: 'insufficient_evidence',
     };
 
   // dose > standard and ≤ max
@@ -238,15 +306,25 @@ function checkDose(
         confidence: 'medium',
         evidence: [std.evidence, t.evidence],
       };
-    const startNote = med.isNewStart
-      ? 'The document describes this as a new start'
-      : 'The document does not document prior therapy or titration';
+    // Whether this is a new start decides the verdict; when the document doesn't establish it
+    // (with a validated quote), report the gap instead of guessing a conflict.
+    if (med.isNewStart === null)
+      return {
+        ...base,
+        verdict: 'unknown',
+        constraint,
+        explanation: `${fmt(dose, std.unit)} exceeds the standard starting dose of ${fmt(std.value, std.unit)}. Whether it is consistent depends on prior therapy, which the document does not establish (the monograph requires ${schedule}).`,
+        confidence: 'low',
+        evidence: [std.evidence, t.evidence],
+        reason: 'insufficient_evidence',
+      };
+    const startNote = 'The document describes this as a new start';
     return {
       ...base,
       verdict: 'conflict',
       constraint,
-      explanation: `${startNote}, yet ${fmt(dose, med.doseUnit)} exceeds the standard starting dose of ${fmt(std.value, std.unit)}. Under the monograph's ${schedule}, reaching ${fmt(dose, med.doseUnit)} needs ${steps} step(s) — at least ${minWeeks} weeks. Being below the ${max ? fmt(max.value, max.unit) : ''} maximum does not make this initiation dose consistent.`,
-      confidence: med.isNewStart ? 'medium' : 'low',
+      explanation: `${startNote}, yet ${fmt(dose, std.unit)} exceeds the standard starting dose of ${fmt(std.value, std.unit)}. Under the monograph's ${schedule}, reaching ${fmt(dose, std.unit)} needs ${steps} step(s) — at least ${minWeeks} weeks. Being below the ${max ? fmt(max.value, max.unit) : ''} maximum does not make this initiation dose consistent.`,
+      confidence: 'medium',
       evidence: [std.evidence, t.evidence],
     };
   }
@@ -288,6 +366,7 @@ function checkTiming(med: MedicationForCheck, rules: MonographRules): DetFinding
       explanation: 'The monograph does not specify administration timing.',
       confidence: 'medium',
       evidence: [],
+      reason: 'not_constrained',
     };
   if (!timing)
     return {
@@ -297,8 +376,20 @@ function checkTiming(med: MedicationForCheck, rules: MonographRules): DetFinding
       explanation: `The monograph specifies administration ${TIMING_LABEL[req.timing]}; the prescription does not state a timing.`,
       confidence: 'medium',
       evidence: [req.evidence],
+      reason: 'not_stated',
     };
-  const ok = timingsCompatible(req.timing, timing);
+  const cmp = compareTimings(req.timing, timing);
+  if (cmp === 'undetermined')
+    return {
+      ...base,
+      verdict: 'unknown',
+      constraint: TIMING_LABEL[req.timing],
+      explanation: `The monograph specifies administration ${TIMING_LABEL[req.timing]}; the prescription (${TIMING_LABEL[timing]}) does not say whether that is met.`,
+      confidence: 'low',
+      evidence: [req.evidence],
+      reason: 'insufficient_evidence',
+    };
+  const ok = cmp === 'compatible';
   return {
     ...base,
     verdict: ok ? 'consistent' : 'conflict',
@@ -365,15 +456,18 @@ function checkDuration(med: MedicationForCheck, rules: MonographRules): DetFindi
           confidence: 'medium',
           evidence: [re.evidence],
         };
+  const limited = Boolean(max || re);
   return {
     ...base,
-    verdict: (max || re) && med.durationRaw ? 'unknown' : 'not_addressed',
-    constraint: re ? `reassess at ${re.value} weeks` : null,
-    explanation:
-      max || re
+    verdict: limited && med.durationRaw ? 'unknown' : 'not_addressed',
+    constraint: re ? `reassess at ${re.value} weeks` : max ? `≤ ${max.value} weeks` : null,
+    explanation: !limited
+      ? 'The monograph states no numeric duration limit.'
+      : med.durationRaw
         ? 'Duration could not be compared deterministically.'
-        : 'The monograph states no numeric duration limit.',
+        : 'The monograph limits the duration, but the prescription does not state one.',
     confidence: 'low',
-    evidence: re ? [re.evidence] : [],
+    evidence: re ? [re.evidence] : max ? [max.evidence] : [],
+    reason: !limited ? 'not_constrained' : med.durationRaw ? 'insufficient_evidence' : 'not_stated',
   };
 }

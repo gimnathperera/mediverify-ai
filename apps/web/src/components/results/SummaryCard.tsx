@@ -1,4 +1,4 @@
-import type { ResultsDto } from '@mediverify/shared';
+import type { ResultsDto } from '@mediverify/shared/client';
 
 import { modelLabel } from '../../lib/messages';
 import { Alert, Badge, Card } from '../ui/primitives';

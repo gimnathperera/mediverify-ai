@@ -5,7 +5,7 @@ import {
   PDF_MIME,
   sniffDocumentType,
   type ReferenceDto,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 import { FileUp, Info } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 
@@ -52,7 +52,7 @@ export function UploadPanel({
 
   const handle = async (file: File | undefined) => {
     setError(null);
-    if (!file) return;
+    if (!file || busy) return; // one upload at a time (drops included)
     const problem = await validateFile(file);
     if (problem) {
       setError(problem);

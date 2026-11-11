@@ -1,4 +1,8 @@
-import { JOB_EVENTS_CHANNEL, pg } from '@mediverify/db';
+import {
+  JOB_EVENTS_CHANNEL,
+  listenWithReconnect,
+  type Listener as DbListener,
+} from '@mediverify/db';
 import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import type { Logger } from 'pino';
 
@@ -16,7 +20,7 @@ type Listener = () => void;
 @Injectable()
 export class EventsHub implements OnModuleDestroy {
   private readonly listeners = new Map<string, Set<Listener>>();
-  private client: pg.Client | null = null;
+  private listener: DbListener | null = null;
   private connecting: Promise<void> | null = null;
   private closed = false;
 
@@ -25,32 +29,25 @@ export class EventsHub implements OnModuleDestroy {
     @Inject(LOGGER) private readonly log: Logger,
   ) {}
 
+  /** One LISTEN connection per process; it reconnects with backoff and pokes every stream after. */
   private async connect(): Promise<void> {
-    if (this.client || this.closed) return;
-    this.connecting ??= (async () => {
-      const client = new pg.Client({ connectionString: this.config.databaseUrl });
-      client.on('notification', (msg) => {
-        if (msg.payload) this.poke(msg.payload);
+    if (this.listener || this.closed) return;
+    this.connecting ??= listenWithReconnect({
+      connectionString: this.config.databaseUrl,
+      channel: JOB_EVENTS_CHANNEL,
+      onNotify: (jobId) => {
+        if (jobId) this.poke(jobId);
+      },
+      onRestore: () => this.pokeAll(),
+      log: this.log,
+      eventPrefix: 'sse',
+    })
+      .then((l) => {
+        this.listener = l;
+      })
+      .finally(() => {
+        this.connecting = null;
       });
-      client.on('error', (err) => {
-        this.log.warn(
-          { event: 'sse.listen_error', error: err.message },
-          'LISTEN connection lost; reconnecting',
-        );
-        this.client = null;
-        client.end().catch(() => undefined);
-        setTimeout(() => {
-          this.connect()
-            .then(() => this.pokeAll())
-            .catch(() => undefined);
-        }, 1000);
-      });
-      await client.connect();
-      await client.query(`LISTEN ${JOB_EVENTS_CHANNEL}`);
-      this.client = client;
-    })().finally(() => {
-      this.connecting = null;
-    });
     return this.connecting;
   }
 
@@ -75,6 +72,6 @@ export class EventsHub implements OnModuleDestroy {
 
   async onModuleDestroy() {
     this.closed = true;
-    await this.client?.end().catch(() => undefined);
+    await this.listener?.close();
   }
 }

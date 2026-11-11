@@ -25,21 +25,19 @@ recaptures them from a running stack.
 
 ## Quick start (≈ 5–10 min, most of it the first image build)
 
-Prerequisites: Docker Desktop (Compose v2+), about 6 GB free disk space, and ports 8088 and 55432 free.
+Prerequisites: Docker Desktop (Compose v2+), about 6 GB free disk space, and ports 8088 and 55432 free
+(change them with `WEB_PORT` / `DB_HOST_PORT`; the database binds to 127.0.0.1 only).
 
-```bash
-cp .env.example .env
-```
-
-1. Edit `.env` and pick a mode:
-   - **Real inference:** set `OPENAI_API_KEY=` (and optionally `OPENAI_MODEL`).
-   - **Fixture mode, no key needed:** set `LLM_PROVIDER=fixture`. It covers only the bundled sample document (see
-     [Fixture mode](#llm-modes-real-vs-fixture)).
-2. Start the stack:
+1. Start the stack. **No `.env` is needed**: without an OpenAI key the app runs in the labelled
+   [fixture mode](#llm-modes-real-vs-fixture), which covers the bundled sample document.
 
 ```bash
 docker compose up --build
 ```
+
+2. For **real model inference**, put your key in `.env` (`cp .env.example .env`, set `OPENAI_API_KEY=`) and run
+   `docker compose up -d` again: with a key the provider switches to OpenAI automatically, and self-service sign-up is
+   switched off by default (seed users still work). Every result is labelled with the model that produced it.
 
 3. Open **http://localhost:8088** and sign in:
 
@@ -278,6 +276,16 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
 
 - **Primary document.** Paragraph chunks, plus one chunk per table row with structured cells. A row is never split.
 
+- **Why this chunking.** Verification asks field-level questions ("what is the maximum dose?") about one drug, so the
+  unit of retrieval is a monograph field, tied to its monograph by id — fixed-size windows would mix fields and drugs
+  and make citations vague. The parent chunk keeps whole-monograph context for the model; the drug-name prefix stops
+  "Maximum dose: 40 mg" chunks of different drugs from embedding identically; a table row is one prescription, so
+  splitting it would break the evidence.
+- **Why `bge-small-en-v1.5` (384-d, local).** No document text leaves the machine for embeddings, there is no per-call
+  cost or key, it is deterministic for tests, and it is small enough to bake into the worker image. Within a matched
+  monograph it already reaches Recall@6 = 1.00 on the evidence fields; a larger model would only matter for
+  whole-corpus search, which identity gating makes unnecessary here.
+
 ### Verification, per medication
 
 1. **Identity gate (lexical).** The drug name must match a monograph exactly after normalization ("Cordizem XR" =
@@ -286,9 +294,13 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
      look-alike first for _every_ absent name tested (Pranixol → Pravoxil at cosine 0.818, overlapping the true
      matches at 0.86–0.89).
    - No match → **Unsupported**, citing the coverage note. Close names are listed as "similar, not matched".
-2. **Targeted hybrid retrieval** inside the matched monograph only: `0.7·cosine + 0.3·ts_rank`, top-K = 6, min score
-   0.35. Fields used by deterministic rules are always added, so a ranking miss can't hide a constraint.
-   Retrieval failure → `incomplete`, never "unsupported".
+2. **Targeted retrieval** inside the matched monograph only: one query per prescribing aspect (dose, schedule,
+   duration, indication/contraindications), each ranked by embedding similarity and by full-text rank, fused with
+   **Reciprocal Rank Fusion** (top-K = 6). Contraindications are always included, and fields used by deterministic
+   rules are always added, so a ranking miss can't hide a constraint. Relevance gate: best cosine ≥ 0.35.
+   Retrieval failure → `incomplete`, never "unsupported". (The earlier `0.7·cosine + 0.3·ts_rank` mix was replaced:
+   measured, its full-text half matched no chunk with AND semantics and saturated otherwise — see the ablation in
+   [docs/evaluation.md](docs/evaluation.md).)
 3. **Deterministic checks.** Rules are parsed from the monograph text at index time, each with its verbatim quote:
    unit, dose vs standard/reduced/max (single and daily), titration (increment and minimum interval), route,
    frequency, required/forbidden timing, max duration and reassessment.
@@ -300,8 +312,24 @@ applied migration fails loudly. The seed (`scripts/seed.ts`) is idempotent.
      mislabelled passage id is re-anchored to the chunk that actually contains the quote.
    - A deterministic conflict with a validated quote is authoritative.
    - An LLM-only conflict counts only if its quote validates. Otherwise it is dropped and recorded as invalid evidence.
+   - An LLM-only **indication** conflict also needs the restriction to apply to this patient: the excluded condition
+     ("children under 12", "pregnancy") must be documented in the discharge document. Otherwise the field is
+     "insufficient evidence", not a conflict, and not "safe".
+   - Quotes that decide a verdict must be substantive (≥ 3 words); "once" or "10 mg" never validates a claim.
    - Disagreements are kept, along with `decided_by`.
-   - **Status:** any conflict → Contradicted; dose consistent and no conflicts → Supported; otherwise Incomplete.
+6. **Status.** Every field carries a reason when it isn't decisive: `not_constrained` (the monograph sets no rule),
+   `not_stated` (the prescription doesn't say), `insufficient_evidence`, `unverified` (model claim rejected).
+   - **Contradicted:** any field conflicts.
+   - **Supported:** dose confirmed consistent, route and frequency consistent (or unconstrained), and every other field
+     consistent or unconstrained.
+   - **Incomplete:** anything else — the summary lists which fields could not be confirmed and why.
+   - **Unsupported:** no monograph in this reference (a coverage gap, not "unsafe").
+
+   **Why four states.** A reviewer must never read "we couldn't check" as "fine". Unsupported is a property of the
+   reference (it has no monograph), Incomplete is a property of the evidence (parse, retrieval, model or data gap),
+   and only Supported asserts that every rule the formulary states was checked. The label comes from these
+   deterministic rules over validated findings, never directly from the model. One failed model call makes only that
+   medication Incomplete; the rest are still verified.
 
 ### Critical points ranking
 
@@ -325,8 +353,10 @@ rewrite primary-document points. They appear only in verification results, which
 - **Constrained output.** All model output is constrained by strict JSON Schema (generated from zod) and re-validated.
 - **Citations.** Every citation and critical point is quote-validated. Anything that fails is dropped or marked, never
   shown as verified.
-- **Summary guard.** Numbers and capitalized terms in the summary must exist in the source; otherwise it gets one retry,
-  then is stored with a visible warning.
+- **Summary guard** (deterministic): numbers and capitalized terms must exist in the source; a dose next to a drug
+  name must be paired with that drug in one source sentence or table row; a negation added or dropped against every
+  closely matching source sentence is flagged. Failures get one retry, then the summary is stored with visible
+  warnings. Measured: 0 false warnings on the fixture summary and 8 live-model summaries.
 
 ### Retrieval evaluation strategy
 
@@ -338,7 +368,7 @@ failure modes are in [docs/evaluation.md](docs/evaluation.md).
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Is the right monograph chosen?**       | Identity gate on 5 positives (the prescribed drugs that have monographs) and 7 negatives: Pranixol plus adversarial look-alikes (Velantina, Quintaxol, Etrazepam, Floranex, Sumavastin, "Cordizem" without "-XR") | 5/5 matched, 7/7 correctly not matched                                                                                                                                                            |
 | **Would vector search alone be safe?**   | Diagnostic: the same names queried against _all_ chunks without the gate                                                                                                                                          | Every absent name retrieves a look-alike (e.g. Pranixol → Pravoxil, cosine 0.818, overlapping true matches at 0.86–0.89). No threshold separates them, which is why identity is decided lexically |
-| **Are the deciding passages retrieved?** | Recall@K of the expected evidence fields (from the golden file) among passages retrieved inside the matched monograph                                                                                             | Recall@3 0.83, **Recall@6 1.00**, so K defaults to 6                                                                                                                                              |
+| **Are the deciding passages retrieved?** | Recall@K of the expected evidence fields (from the golden file) among passages retrieved inside the matched monograph, for vector-only, the old weighted hybrid and RRF                                           | RRF: Recall@3 **0.93**, **Recall@6 1.00** (weighted hybrid 0.83 / 1.00; vector-only 0.93 / 1.00), so K defaults to 6                                                                              |
 
 End to end, the same run checks verdict accuracy (6/6), conflict-field precision and recall (100%/100%), that every
 citation's quote validates in its chunk (100%), and that distractor monographs never appear in findings (0).
@@ -385,24 +415,25 @@ Logs never contain passwords, tokens, API keys, document text or quotes; only id
 
 All routes are under `/api`. Errors use the shape `{ "error": { "code", "message", "details?" } }`.
 
-| Method | Path                              | Notes                                                                                                                       |
-| ------ | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/auth/signup`                    | 201. Password ≥ 8 characters. Rate-limited.                                                                                 |
-| POST   | `/auth/login`                     | 200. Sets the `mv_session` cookie (HttpOnly, SameSite=Strict). Rate-limited. Timing equalized for unknown emails.           |
-| POST   | `/auth/logout`                    | 204                                                                                                                         |
-| GET    | `/auth/me`                        |                                                                                                                             |
-| GET    | `/references`                     | Shared and read-only.                                                                                                       |
-| GET    | `/references/:id/file`            | The reference PDF (for the deep link).                                                                                      |
-| GET    | `/references/:id/chunks/:chunkId` | Citation preview.                                                                                                           |
-| POST   | `/documents`                      | multipart `file` + `referenceId`. Returns **202** `{documentId, jobId, duplicate:false}`, or **200** with `duplicate:true`. |
-| GET    | `/documents`                      | The caller's documents with their latest job status.                                                                        |
-| GET    | `/documents/:id`                  |                                                                                                                             |
-| GET    | `/documents/:id/file`             | Inline PDF (the converted PDF for DOCX). `?download=1` returns the original.                                                |
-| GET    | `/jobs/:id`                       | Snapshot: stages, timings, errors, `lastEventId`.                                                                           |
-| GET    | `/jobs/:id/events`                | SSE (see above).                                                                                                            |
-| GET    | `/jobs/:id/results`               | Summary, critical points, medications, verifications with citations.                                                        |
-| POST   | `/jobs/:id/retry`                 | 202. Only for failed jobs.                                                                                                  |
-| GET    | `/health`, `/config`              | Liveness; LLM mode for the UI banner.                                                                                       |
+| Method | Path                              | Notes                                                                                                                                                                           |
+| ------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/auth/signup`                    | 201. Password ≥ 8 characters. Rate-limited.                                                                                                                                     |
+| POST   | `/auth/login`                     | 200. Sets the `mv_session` cookie (HttpOnly, SameSite=Strict). Rate-limited. Timing equalized for unknown emails.                                                               |
+| POST   | `/auth/logout`                    | 204                                                                                                                                                                             |
+| GET    | `/auth/me`                        |                                                                                                                                                                                 |
+| GET    | `/references`                     | Shared and read-only.                                                                                                                                                           |
+| GET    | `/references/:id/file`            | The reference PDF (for the deep link).                                                                                                                                          |
+| GET    | `/references/:id/chunks/:chunkId` | Citation preview.                                                                                                                                                               |
+| POST   | `/documents`                      | multipart `file` + `referenceId`. Returns **202** `{documentId, jobId, duplicate:false}`, or **200** with `duplicate:true`.                                                     |
+| GET    | `/documents`                      | Paged and filtered on the server: `?limit=25&cursor=&status=all\|processing\|completed\|failed&q=`. Returns `{items, nextCursor, counts}`; keyset cursor on `(created_at, id)`. |
+| DELETE | `/documents/:id`                  | 204. Deletes the document with its jobs, events and results.                                                                                                                    |
+| GET    | `/documents/:id`                  |                                                                                                                                                                                 |
+| GET    | `/documents/:id/file`             | Inline PDF (the converted PDF for DOCX). `?download=1` returns the original.                                                                                                    |
+| GET    | `/jobs/:id`                       | Snapshot: stages, timings, errors, `lastEventId`.                                                                                                                               |
+| GET    | `/jobs/:id/events`                | SSE (see above).                                                                                                                                                                |
+| GET    | `/jobs/:id/results`               | Summary, critical points, medications, verifications with citations.                                                                                                            |
+| POST   | `/jobs/:id/retry`                 | 202. Only for the document's latest job, when it failed (concurrent retries can't start two pipelines).                                                                         |
+| GET    | `/health`, `/config`              | Liveness; LLM mode for the UI banner.                                                                                                                                           |
 
 **API error codes:**
 
@@ -416,9 +447,11 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 | `NOT_FOUND`              | 404, including _other users' resources_ |
 | `UNSUPPORTED_MEDIA_TYPE` | 415                                     |
 | `PAYLOAD_TOO_LARGE`      | 413 (10 MB)                             |
-| `REFERENCE_NOT_FOUND`    | 400                                     |
+| `REFERENCE_NOT_FOUND`    | 404                                     |
 | `JOB_NOT_RETRYABLE`      | 409                                     |
 | `RATE_LIMITED`           | 429                                     |
+| `QUOTA_EXCEEDED`         | 429 (per-user or app-wide daily budget) |
+| `SIGNUP_DISABLED`        | 403                                     |
 | `INTERNAL`               | 500 (sanitized)                         |
 
 **Pipeline error codes** (shown on stages and jobs):
@@ -427,7 +460,8 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
   `EMBEDDING_FAILED`.
 - Model: `MODEL_UNAVAILABLE`, `MODEL_NOT_CONFIGURED`, `MODEL_QUOTA_EXCEEDED`, `MODEL_REFUSED`, `MODEL_OUTPUT_INVALID`,
   `MODEL_OUTPUT_TRUNCATED`, `FIXTURE_NOT_FOUND`.
-- Runtime: `STAGE_TIMEOUT`, `WORKER_LOST`, `INTERNAL`.
+- Runtime: `STAGE_TIMEOUT` (the stage's model calls and LibreOffice are aborted, not left running), `DOCUMENT_TOO_LARGE`
+  (over `MAX_DOCUMENT_PAGES` / `MAX_DOCUMENT_CHARS`, or a prompt over `LLM_MAX_PROMPT_TOKENS`), `WORKER_LOST`, `INTERNAL`.
 
 ---
 
@@ -442,17 +476,26 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
   - Cookie: HttpOnly, SameSite=Strict; `Secure` is configurable for TLS deployments.
   - Mutating requests must carry an allowed `Origin`.
   - Web and API share an origin through the nginx/Vite proxy, so there is no CORS.
-- **Spending and abuse limits.** Sign-up can be switched off (`ALLOW_SIGNUP=false`); each user gets a rolling 24 h
-  budget of pipeline runs (`DAILY_JOB_LIMIT`, checked inside the job-creating transaction under a per-user lock),
-  and login/sign-up are rate-limited per IP. A hosted demo on a paid model key can't be drained by one account.
+- **Spending and abuse limits.** Sign-up is off by default when a paid model key is configured (`ALLOW_SIGNUP`);
+  each user gets a rolling 24 h budget of pipeline runs (`DAILY_JOB_LIMIT`) and the whole deployment another
+  (`GLOBAL_DAILY_JOB_LIMIT`), both checked inside the job-creating transaction under advisory locks. Input limits
+  (`MAX_DOCUMENT_PAGES`, `MAX_DOCUMENT_CHARS`, `LLM_MAX_PROMPT_TOKENS`) stop oversized documents before any model
+  call, and each job records its model calls and tokens (cost too, when `LLM_PRICE_*` is set). Login/sign-up are
+  rate-limited per client IP (`TRUST_PROXY` makes the API see the address nginx forwards).
+- **Deployment defaults.** The database port binds to 127.0.0.1 only; its password comes from `POSTGRES_PASSWORD`;
+  the API warns at startup when `COOKIE_SECURE` is off in production.
 - **Uploads.** Checked server-side for extension, magic bytes (`%PDF-`, or a DOCX zip containing `word/document.xml`)
   and size. Files are stored as `bytea` and never written to a public path. DOCX conversion runs LibreOffice with an
   isolated, throwaway profile and a timeout.
 - **No published source.** Production web images ship no source maps; the PDF viewer (react-pdf + pdf.js) is a
   separate chunk loaded only when a document opens.
 - **Dependencies.** CI fails on high/critical advisories in production dependencies (`pnpm audit --prod`).
-- **Headers.** nginx sets CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options` and `Referrer-Policy`; the API also
-  sets the last two.
+- **Headers.** nginx sets CSP, `X-Frame-Options: DENY`, `X-Content-Type-Options` and `Referrer-Policy` on every
+  response, static assets included; the API also sets the last two.
+- **Data lifecycle.** Users can delete a document (everything cascades). The worker's maintenance task purges expired
+  sessions and the progress events of finished jobs after `EVENT_RETENTION_DAYS` (30), and — if
+  `DOCUMENT_RETENTION_DAYS` is set — whole documents. Citations keep a snapshot of their passage, so they survive a
+  reference re-index.
 - **Secrets** come only from the environment. `.env` is git-ignored. A pre-commit secret guard and gitleaks run in CI.
   The API key never reaches the browser bundle.
 - **Logs** are pino JSON with `job_id`, `document_id`, `stage`, `event` and `duration_ms`. They **never** contain
@@ -463,11 +506,12 @@ All routes are under `/api`. Errors use the shape `{ "error": { "code", "message
 ## Testing and quality
 
 ```bash
-pnpm test:unit          # 38 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
+pnpm test:unit          # 76 tests: parsing/table reconstruction (PDF + LibreOffice-rendered DOCX), monograph chunking & rules,
                         #           identity gate, quote validation, deterministic checks, merge controls, strict schemas,
-                        #           injection, error classification, bounded concurrency, dependency pins
-pnpm test:web           # 59 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
-pnpm test:integration   # 43 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
+                        #           injection, error classification, bounded concurrency, dependency pins, status
+                        #           rules, parsers (doses/units/frequencies/timing), RRF retrieval, summary guard
+pnpm test:web           # 69 React tests in jsdom (Testing Library + MSW + axe-core): pages, results, upload, auth, SSE
+pnpm test:integration   # 53 tests vs real Postgres (needs `docker compose up -d db`; creates `mediverify_test`)
 pnpm test:coverage      # all three, with v8 coverage and thresholds (CI publishes the summary and HTML report)
 pnpm test:e2e           # Playwright (desktop + Pixel 7) vs the running Compose stack in fixture mode:
                         #   reviewer flow + axe WCAG 2.1 AA scan of every page (incl. colour contrast)
@@ -483,12 +527,15 @@ The integration tests break down as follows:
 - **Golden pipeline (21):** all 6 statuses, the conflicting field, the matched monograph and page, citation integrity,
   no distractor findings, and discrepancy preservation. DOCX parity (identical table cells from the
   LibreOffice-converted DOCX) is covered by the unit tests.
-- **API (13):** auth, cookie flags and argon2, CSRF, 401s on every route, 202 atomic upload, validation, **transaction
-  rollback** via an injected fault, duplicates, **IDOR across every route including SSE**, and SSE replay, resume and
-  live streaming.
-- **Worker reliability (7):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
-  reaper, zombie-lease protection, and surviving a dropped LISTEN connection (database restart).
-- **Deployment limits (2):** sign-up disabled, per-user daily run budget (duplicates free, retries counted).
+- **API (16):** auth, cookie flags and argon2, CSRF, 401s on every route, 202 atomic upload, validation, **transaction
+  rollback** via an injected fault, duplicates, **IDOR across every route including SSE and delete**, SSE replay,
+  resume and live streaming, keyset pagination with server filters and counts, delete cascade, and racing retries.
+- **Worker reliability (12):** non-retryable failure, retry then fail, idempotent resume, `SKIP LOCKED` exclusivity,
+  reaper, zombie-lease protection, surviving a dropped LISTEN connection, **stage timeout aborting the in-flight model
+  call**, the page limit refusing a document before any model call, one medication's failure isolated (with usage
+  recorded), citation snapshots surviving a re-index, and retention.
+- **Deployment limits (4):** sign-up disabled, per-user and app-wide daily run budgets, sign-up off by default with a
+  paid key.
 
 The **web tests** (`apps/web/test`) render real components with the app's providers. The API is mocked with MSW,
 using responses captured from a fixture-mode run of the bundled sample, so the DTO shapes match the server exactly. They cover:
@@ -502,8 +549,8 @@ using responses captured from a fixture-mode run of the bundled sample, so the D
 Each page also runs an axe-core check. Colour contrast needs real layout, so it is checked in Playwright instead
 (`tests/e2e/a11y.spec.ts`).
 
-Coverage (unit + web + integration, 2026-11-10): 83.8% statements, 80.6% branches, 85.9% functions (web app alone:
-84.9% statements). It was 57.6% before the component tests; the thresholds in `vitest.config.ts` were raised to match.
+Coverage (unit + web + integration, 2026-11-11): 85.1% statements, 81.9% branches, 88.2% functions. It was 57.6%
+before the component tests; the thresholds in `vitest.config.ts` were raised to match.
 
 **Tooling.**
 
@@ -532,7 +579,7 @@ Coverage (unit + web + integration, 2026-11-10): 83.8% statements, 80.6% branche
 - Dependabot is configured for npm, Actions and Docker.
 
 > **Status (2026-11-10):** GitHub Actions passes on `main`: quality, unit + integration tests, the Compose build with
-> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 38 unit, 59 web, 43 integration and
+> Playwright E2E (desktop + Pixel 7, fixture mode), and the secret scan. Locally: 76 unit, 69 web, 53 integration and
 > 6 Playwright tests (smoke + accessibility, desktop + Pixel 7) pass, with coverage thresholds enforced. The new web
 > tests, accessibility scan and bundle budget have not run in GitHub Actions yet. Live OpenAI evaluation ran locally (`pnpm eval:live`, 2026-11-10);
 > the manual `eval-live` CI job needs an `OPENAI_API_KEY` repository secret and has not run in CI.
@@ -555,10 +602,13 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Small live evaluation set.** Live numbers come from one document (8 full runs plus targeted runs). Model output
   varies between runs; one run in eight produced an indication false positive, which is now guarded in code. A larger
   synthetic set is the next step.
-- **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start. If the
-  model can't tell whether it's a new start, confidence drops to low.
-- **Indication checks are LLM-only** (semantic). The deterministic checks don't judge indications. A model-only
-  indication conflict counts only when the cited text excludes or restricts the use; absence from the list does not count.
+- **Cordizem-XR is interpretive.** The titration rule is applied because the document describes a new start, which the
+  extractor must back with a quote that validates in the document. Without one, the dose is "insufficient evidence"
+  and the medication Incomplete — never a guessed conflict.
+- **Indication checks are LLM-only** (semantic). A model-only indication conflict counts only when the cited text
+  excludes or restricts the use _and_ the excluded condition is documented for this patient. The applicability check
+  is lexical (terms of the excluded condition must appear in the discharge document), so a condition described in
+  different words reads as "insufficient evidence" (Incomplete), not as a conflict.
 - **Parsing limits.** No OCR, so scanned PDFs fail with `PARSE_FAILED`. Rotated tables and tables without a first
   column per row are not handled.
 - **Monograph rule parsing** uses patterns fitted to this digest's phrasing. A differently worded formulary would need
@@ -567,19 +617,17 @@ Measured evaluation results, method and failure modes are in **[docs/evaluation.
 - **Single region, single worker by default.** Scale by adding worker replicas; the claim is `SKIP LOCKED`-safe.
 - **Image size.** The worker image is large because of LibreOffice and the baked model.
 - **Storage.** File bytes live in Postgres, which is fine at a 10 MB cap. Use object storage at scale.
-- **Data lifecycle.** There is no endpoint to delete a document, and no retention job for old documents, job events
-  or expired sessions.
 - **Rate limiting is per API process** (in-memory). With several API replicas it needs a shared store (Postgres
   or Redis). The daily job limit is already enforced in Postgres.
-- **The document list shows the latest 50**, with no pagination.
-- **Observability is logs only.** There are no metrics (queue depth, stage latency, token cost) and no tracing.
+- **Observability is logs plus per-job usage.** Every model call is logged with job, stage and tokens, and each job
+  stores its totals; there are no metrics dashboards (queue depth, latency percentiles) or distributed tracing.
 - **References are loaded by the seed script.** The schema is versioned, but there is no admin API to upload, index or
   select a new formulary version.
 
 ## With more time
 
 1. Build a larger synthetic evaluation set (more documents, adversarial look-alikes), and run it live on a schedule.
-2. Add a delete endpoint with a retention job, metrics (Prometheus or OpenTelemetry) and a shared rate limiter.
+2. Add metrics (Prometheus or OpenTelemetry) and a shared rate limiter.
 3. Add a reviewer feedback loop: accept or override a finding, with an audit trail.
 4. Add OCR fallback and HNSW indexing for larger corpora.
 5. Make reference versions diffable, and re-verify on a new version.

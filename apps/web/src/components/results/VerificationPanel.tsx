@@ -4,7 +4,7 @@ import type {
   MedicationDto,
   VerificationDto,
   VerificationStatus,
-} from '@mediverify/shared';
+} from '@mediverify/shared/client';
 import { ChevronDown, FileSearch, Quote, X } from 'lucide-react';
 import { useState } from 'react';
 
@@ -12,15 +12,18 @@ import { cn } from '../../lib/utils';
 import { VERIFICATION_META, VerificationBadge } from '../status';
 import { Button, Card, EmptyState } from '../ui/primitives';
 
+import { FindingStrip } from './FindingStrip';
 import {
   FIELD_LABEL,
   prescribedLine,
+  REASON_LABEL,
   STATUS_ACCENT,
   STATUS_ORDER,
   STATUS_SURFACE,
   VERDICT_STYLE,
   verificationAnchor,
 } from './labels';
+import { NeedsAttention } from './NeedsAttention';
 
 export type OnCite = (c: CitationDto, heading: string) => void;
 
@@ -30,12 +33,14 @@ export function VerificationPanel({
   filter,
   onFilterChange,
   onCite,
+  onShowVerification,
 }: {
   verifications: VerificationDto[];
   medications: MedicationDto[];
   filter: VerificationStatus | null;
   onFilterChange: (s: VerificationStatus | null) => void;
   onCite: OnCite;
+  onShowVerification: (verificationId: string) => void;
 }) {
   const medById = new Map(medications.map((m) => [m.id, m]));
   const counts = new Map<VerificationStatus, number>();
@@ -44,6 +49,7 @@ export function VerificationPanel({
 
   return (
     <div className="space-y-4">
+      <NeedsAttention verifications={verifications} onShowVerification={onShowVerification} />
       <div
         className="grid grid-cols-2 gap-2 sm:grid-cols-4"
         role="group"
@@ -160,6 +166,7 @@ export function VerificationCard({
         <VerificationBadge status={v.status} />
       </div>
       <p className="mt-2 text-sm text-slate-700">{v.summary}</p>
+      {v.status !== 'unsupported' && <FindingStrip findings={v.findings} />}
 
       {v.status === 'unsupported' && (
         <div className="mt-3 space-y-2">
@@ -231,6 +238,7 @@ function FindingRow({ f, drug, onCite }: { f: FindingDto; drug: string; onCite: 
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-medium text-slate-900">{FIELD_LABEL[f.field]}</span>
         <span className={cn('rounded px-1.5 py-0.5 text-xs font-medium', st.cls)}>{st.label}</span>
+        {f.reason && <span className="text-xs text-slate-700">{REASON_LABEL[f.reason]}</span>}
         <span className="text-xs text-slate-600">
           by {f.decidedBy} · {f.confidence} confidence
         </span>

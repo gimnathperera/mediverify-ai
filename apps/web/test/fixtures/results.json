@@ -1,6 +1,6 @@
 {
-  "jobId": "18a98268-86c1-4da8-84d5-f2bdc7e83b13",
-  "documentId": "d7364bdb-5eaf-4e3b-8c84-29459d67b262",
+  "jobId": "2f171f8c-35a1-432c-b78b-823801389089",
+  "documentId": "e63bd907-d900-45f1-87a1-01bbdf3f6fdc",
   "status": "completed",
   "llm": { "provider": "fixture", "model": "fixture" },
   "summary": {
@@ -10,7 +10,7 @@
   },
   "criticalPoints": [
     {
-      "id": "7e5d32f3-a330-4f47-b4bb-639b49c4a5b1",
+      "id": "a085002b-1d5f-4deb-889f-3c2cbc411a2c",
       "rank": 1,
       "category": "serious_side_effect",
       "severity": "high",
@@ -25,7 +25,7 @@
       ]
     },
     {
-      "id": "fd054c76-0642-4792-8c07-e75bbddce73f",
+      "id": "aa65daa4-5975-4b7e-8914-572f8f76ed92",
       "rank": 2,
       "category": "document_discrepancy",
       "severity": "high",
@@ -45,7 +45,7 @@
       ]
     },
     {
-      "id": "f98abcad-cc5c-499c-935c-313808cc77ee",
+      "id": "5deb853b-8ece-414a-b351-6267eaf89d78",
       "rank": 3,
       "category": "safety_precaution",
       "severity": "high",
@@ -60,7 +60,7 @@
       ]
     },
     {
-      "id": "47376b51-c47d-40cd-8a16-814e59521402",
+      "id": "e0563e96-a63a-4620-a10f-babc0b1b836f",
       "rank": 4,
       "category": "serious_side_effect",
       "severity": "medium",
@@ -75,7 +75,7 @@
       ]
     },
     {
-      "id": "22980936-3428-49ae-8474-5edfd6acb364",
+      "id": "4d8e0d00-372c-4aa3-950e-47e38d2f021e",
       "rank": 5,
       "category": "administration_timing",
       "severity": "medium",
@@ -90,7 +90,7 @@
       ]
     },
     {
-      "id": "5069b888-fc50-45fc-94ad-c06238c66b43",
+      "id": "fdf4e137-1d7f-4e42-b53b-1325d19237e8",
       "rank": 6,
       "category": "administration_timing",
       "severity": "medium",
@@ -105,7 +105,7 @@
       ]
     },
     {
-      "id": "7f6d1d9a-1ca3-46d8-9a11-97f0bd5bed82",
+      "id": "9457e2de-d1c7-4142-b8e8-9b53008abd1e",
       "rank": 7,
       "category": "administration_timing",
       "severity": "medium",
@@ -120,7 +120,7 @@
       ]
     },
     {
-      "id": "4f95046b-6175-4b61-8c85-b8ef8b7c2379",
+      "id": "a390a385-410f-4eb3-a6d6-b4a37b043c23",
       "rank": 8,
       "category": "duration_limit",
       "severity": "medium",
@@ -140,7 +140,7 @@
       ]
     },
     {
-      "id": "90adf1c5-a5a8-41d5-9b89-20858ed73acc",
+      "id": "360e9644-7b26-4d07-ab6b-e877a06f1bf5",
       "rank": 9,
       "category": "duration_limit",
       "severity": "medium",
@@ -155,7 +155,7 @@
       ]
     },
     {
-      "id": "6bc1fca8-f5fc-4ca1-bda1-317a893c8c0c",
+      "id": "086a3c91-6dc9-4763-9b8f-64aac07c8db5",
       "rank": 10,
       "category": "safety_precaution",
       "severity": "medium",
@@ -170,7 +170,7 @@
       ]
     },
     {
-      "id": "6d46719d-6e3d-49fa-b44e-d41c9e274d38",
+      "id": "f3ca65e8-347d-4376-9aee-e5fc24472f9f",
       "rank": 11,
       "category": "follow_up",
       "severity": "medium",
@@ -185,7 +185,7 @@
       ]
     },
     {
-      "id": "fbc20aa4-415d-4123-985a-049aee392d00",
+      "id": "f406414a-55af-4513-9f48-2207cb3a167a",
       "rank": 12,
       "category": "follow_up",
       "severity": "medium",
@@ -200,7 +200,7 @@
       ]
     },
     {
-      "id": "99109d96-83ef-4039-8150-291e4fababbc",
+      "id": "cd85871d-6048-4ce4-bb4c-317ace5164e3",
       "rank": 13,
       "category": "follow_up",
       "severity": "medium",
@@ -215,7 +215,7 @@
       ]
     },
     {
-      "id": "66728661-b3b1-4e68-a181-6e29c47b148e",
+      "id": "5f29a74a-4732-4a14-992f-b8962bf6f622",
       "rank": 14,
       "category": "other",
       "severity": "low",
@@ -232,7 +232,7 @@
   ],
   "medications": [
     {
-      "id": "6cb6f1bd-d1a2-40b9-94dc-cc2a34db35a3",
+      "id": "4abc39e0-5d39-4b81-9b65-08d686b8ab13",
       "ordinal": 1,
       "drugName": "Velantine",
       "doseValue": 10,
@@ -253,7 +253,7 @@
       "ambiguities": []
     },
     {
-      "id": "d541c13e-0aba-4979-bb01-a840ae314e03",
+      "id": "d8de2405-d014-4cec-9eda-0359ed2054fe",
       "ordinal": 2,
       "drugName": "Cordizem-XR",
       "doseValue": 100,
@@ -274,7 +274,7 @@
       "ambiguities": []
     },
     {
-      "id": "7c1562b4-42bc-4cff-8329-24e86a8d118a",
+      "id": "1d7b8c4c-d35b-492e-b2bc-1afa52d562fd",
       "ordinal": 3,
       "drugName": "Pravoxil",
       "doseValue": 20,
@@ -295,7 +295,7 @@
       "ambiguities": []
     },
     {
-      "id": "4909afdb-2fb1-4e7c-a814-d160a1a0439f",
+      "id": "fead263d-cb9b-424e-981a-e2867b427c73",
       "ordinal": 4,
       "drugName": "Etrazolam",
       "doseValue": 0.5,
@@ -318,7 +318,7 @@
       ]
     },
     {
-      "id": "4a776e0f-45f8-4c35-a9cd-31ce3eca790f",
+      "id": "ae588211-3699-4156-b17c-8e70cb6d718e",
       "ordinal": 5,
       "drugName": "Pranixol",
       "doseValue": 10,
@@ -339,7 +339,7 @@
       "ambiguities": []
     },
     {
-      "id": "fbc24288-af50-4794-8149-e1781bd87510",
+      "id": "48758226-8243-46f4-b0f5-237dbac517e0",
       "ordinal": 6,
       "drugName": "Quintaxin",
       "doseValue": 20,
@@ -362,17 +362,17 @@
   ],
   "verifications": [
     {
-      "id": "a96e4746-544a-401e-93c1-7f2432f017de",
-      "medicationId": "6cb6f1bd-d1a2-40b9-94dc-cc2a34db35a3",
+      "id": "60392c14-acfd-488c-9f58-791454aa2ecb",
+      "medicationId": "4abc39e0-5d39-4b81-9b65-08d686b8ab13",
       "drugName": "Velantine",
       "status": "supported",
       "monographName": "Velantine",
-      "summary": "Consistent with the Velantine monograph (dose, unit, route, frequency, indication). Dose, route, frequency and indication match the Velantine monograph; it sets no timing or duration limit.",
+      "summary": "Consistent with the Velantine monograph (dose, unit, route, frequency, indication); the monograph sets no rule for timing, duration. Dose, route, frequency and indication match the Velantine monograph; it sets no timing or duration limit.",
       "similarNames": [],
       "coverageCitation": null,
       "findings": [
         {
-          "id": "2427243f-df87-40bc-b212-d0cf9bc5f5d4",
+          "id": "66a3a7c3-7690-4682-a49b-d28f96b81cc6",
           "field": "dose",
           "verdict": "consistent",
           "prescribedValue": "10 mg",
@@ -380,6 +380,7 @@
           "explanation": "Dose matches the monograph standard adult dose of 10 mg.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -392,7 +393,7 @@
           }
         },
         {
-          "id": "ea460c1f-eb1b-4bb5-b316-4548c1833df1",
+          "id": "8e3af1e7-2690-4b9e-8cf3-657e805f8d7f",
           "field": "unit",
           "verdict": "consistent",
           "prescribedValue": "mg",
@@ -400,6 +401,7 @@
           "explanation": "Dose unit (mg) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -412,7 +414,7 @@
           }
         },
         {
-          "id": "5e23003e-2c2c-407d-b2e7-b6667dc87370",
+          "id": "7b5d7dff-424f-4a50-881e-9a998538282b",
           "field": "route",
           "verdict": "consistent",
           "prescribedValue": "oral",
@@ -420,6 +422,7 @@
           "explanation": "Route (oral) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -432,7 +435,7 @@
           }
         },
         {
-          "id": "d5e79774-6bfb-49ed-b743-d85591296a8d",
+          "id": "a0376b6d-0df0-419b-ae7d-af2db6c3e3d2",
           "field": "frequency",
           "verdict": "consistent",
           "prescribedValue": "PO once daily",
@@ -440,6 +443,7 @@
           "explanation": "Frequency (once daily) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5647ebfb-749a-48e4-b714-ec8f6698e5e2",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -452,7 +456,7 @@
           }
         },
         {
-          "id": "0f53f8d9-4e5f-4408-8c32-f9a5295e13d5",
+          "id": "d8431834-c479-4141-b3cc-85f9c35d4f7d",
           "field": "timing",
           "verdict": "not_addressed",
           "prescribedValue": null,
@@ -460,10 +464,11 @@
           "explanation": "The monograph does not specify administration timing.",
           "decidedBy": "deterministic",
           "confidence": "medium",
+          "reason": "not_constrained",
           "citation": null
         },
         {
-          "id": "088a63f8-54dd-4d43-af10-337f892c7767",
+          "id": "9964f5ba-a2b7-45b7-b350-509dd488a53b",
           "field": "duration",
           "verdict": "not_addressed",
           "prescribedValue": "Continue indefinitely",
@@ -471,10 +476,11 @@
           "explanation": "The monograph states no numeric duration limit.",
           "decidedBy": "deterministic",
           "confidence": "low",
+          "reason": "not_constrained",
           "citation": null
         },
         {
-          "id": "e922580a-a767-45fc-b66a-bea5ef9f605b",
+          "id": "ba17e454-0606-4f6f-bebc-e3ec5bb3bc3f",
           "field": "indication",
           "verdict": "consistent",
           "prescribedValue": "Hypertension",
@@ -482,6 +488,7 @@
           "explanation": "Hypertension is the monograph's first-line indication.",
           "decidedBy": "llm",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "7fc5d200-c079-4bc2-973c-857b124c8041",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -496,8 +503,8 @@
       ]
     },
     {
-      "id": "b55a9760-e88b-4e8d-8a43-ddcd6c90fcb7",
-      "medicationId": "d541c13e-0aba-4979-bb01-a840ae314e03",
+      "id": "90c8ee59-6635-40ec-b218-50a92230d8fb",
+      "medicationId": "d8de2405-d014-4cec-9eda-0359ed2054fe",
       "drugName": "Cordizem-XR",
       "status": "contradicted",
       "monographName": "Cordizem-XR",
@@ -506,7 +513,7 @@
       "coverageCitation": null,
       "findings": [
         {
-          "id": "17234b67-4dd8-4515-ac69-0225df319b78",
+          "id": "1658300e-6824-4d3a-a32d-d7c21ba836d5",
           "field": "dose",
           "verdict": "conflict",
           "prescribedValue": "100 mg",
@@ -514,6 +521,7 @@
           "explanation": "The document describes this as a new start, yet 100 mg exceeds the standard starting dose of 50 mg. Under the monograph's titration in 25 mg increments at intervals of no less than 2 weeks, reaching 100 mg needs 2 step(s) — at least 4 weeks. Being below the 200 mg maximum does not make this initiation dose consistent.",
           "decidedBy": "both",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -526,7 +534,7 @@
           }
         },
         {
-          "id": "02d0f5cc-9627-4abc-889d-431e55d5eb34",
+          "id": "e25d99d7-f2dd-4957-a5dd-649a8ca39ac4",
           "field": "unit",
           "verdict": "consistent",
           "prescribedValue": "mg",
@@ -534,6 +542,7 @@
           "explanation": "Dose unit (mg) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -546,7 +555,7 @@
           }
         },
         {
-          "id": "478d2620-e34b-4aad-8deb-dd357b0d8377",
+          "id": "1e3e4235-6d14-4ae1-a962-9fceabfb2bff",
           "field": "route",
           "verdict": "consistent",
           "prescribedValue": "oral",
@@ -554,6 +563,7 @@
           "explanation": "Route (oral) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -566,7 +576,7 @@
           }
         },
         {
-          "id": "cd9cc8d7-1457-4bb4-becb-d216ba3c8173",
+          "id": "4257f2fb-4441-4def-91ca-1a40e81348e5",
           "field": "frequency",
           "verdict": "consistent",
           "prescribedValue": "PO once daily",
@@ -574,6 +584,7 @@
           "explanation": "Frequency (once daily) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -586,7 +597,7 @@
           }
         },
         {
-          "id": "98d61c03-768d-4016-b4c1-5b63ea0ef79c",
+          "id": "ecec5dcf-ca84-441d-8196-9090c1e00f90",
           "field": "timing",
           "verdict": "consistent",
           "prescribedValue": "in the morning",
@@ -594,6 +605,7 @@
           "explanation": "Timing (in the morning) is consistent with the monograph (in the morning).",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "5a829911-0e75-43be-b296-29f564a5e4b1",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -606,7 +618,7 @@
           }
         },
         {
-          "id": "caf62660-a21e-4e21-bd18-a89fac9347bb",
+          "id": "2c25fc24-4c89-4777-8128-2eedde7e5197",
           "field": "duration",
           "verdict": "not_addressed",
           "prescribedValue": "Continue indefinitely",
@@ -614,10 +626,11 @@
           "explanation": "The monograph states no numeric duration limit.",
           "decidedBy": "deterministic",
           "confidence": "low",
+          "reason": "not_constrained",
           "citation": null
         },
         {
-          "id": "76d6d5df-0fa8-462f-95ee-4cb66e492dd8",
+          "id": "4486bdf5-3024-4d6b-a91e-046aef07444b",
           "field": "indication",
           "verdict": "consistent",
           "prescribedValue": "Rate control, hypertension",
@@ -625,6 +638,7 @@
           "explanation": "Atrial fibrillation rate control with concurrent hypertension matches the monograph indications.",
           "decidedBy": "llm",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "91e9f041-9ee8-4429-a387-346c98db9195",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -639,8 +653,8 @@
       ]
     },
     {
-      "id": "a2fd236f-29ad-485c-9120-3ecfd252e9a6",
-      "medicationId": "7c1562b4-42bc-4cff-8329-24e86a8d118a",
+      "id": "af9fa834-c5d4-4489-899a-5fbdcbeb4c27",
+      "medicationId": "1d7b8c4c-d35b-492e-b2bc-1afa52d562fd",
       "drugName": "Pravoxil",
       "status": "contradicted",
       "monographName": "Pravoxil",
@@ -649,7 +663,7 @@
       "coverageCitation": null,
       "findings": [
         {
-          "id": "64fc753f-e5b7-4643-b9bd-2bd9ecbbfab1",
+          "id": "ed3827d0-8662-4448-9f44-f1c7e9073dad",
           "field": "dose",
           "verdict": "consistent",
           "prescribedValue": "20 mg",
@@ -657,6 +671,7 @@
           "explanation": "Dose matches the monograph standard adult dose of 20 mg.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -669,7 +684,7 @@
           }
         },
         {
-          "id": "f97b08b1-6405-4951-bd0a-d170ae4bf175",
+          "id": "20479d65-37e1-4e68-ab8f-1988df9f7f27",
           "field": "unit",
           "verdict": "consistent",
           "prescribedValue": "mg",
@@ -677,6 +692,7 @@
           "explanation": "Dose unit (mg) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -689,7 +705,7 @@
           }
         },
         {
-          "id": "2287df7b-efeb-46dc-9a27-9826cf46bc58",
+          "id": "a03b96eb-b734-4781-947e-b1a8135a77f6",
           "field": "route",
           "verdict": "consistent",
           "prescribedValue": "oral",
@@ -697,6 +713,7 @@
           "explanation": "Route (oral) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -709,7 +726,7 @@
           }
         },
         {
-          "id": "076699a3-cfa4-4417-8123-5dc8b8c8b8a6",
+          "id": "270cba55-6478-4be7-ad50-d10108036e5f",
           "field": "frequency",
           "verdict": "consistent",
           "prescribedValue": "PO every morning",
@@ -717,6 +734,7 @@
           "explanation": "Frequency (once daily) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "8356cacd-b773-41ae-ae51-0a43d7d5f814",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -729,7 +747,7 @@
           }
         },
         {
-          "id": "65890533-e376-4102-911d-142120cea121",
+          "id": "9acb00dd-287a-48e7-aea2-2c872caf18ac",
           "field": "timing",
           "verdict": "conflict",
           "prescribedValue": "in the morning",
@@ -737,6 +755,7 @@
           "explanation": "Prescribed in the morning, but the monograph states it must not be given in the morning (required: at bedtime).",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "c0c58f02-8e2b-4998-8f98-5840652d5eb4",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -749,7 +768,7 @@
           }
         },
         {
-          "id": "03885ec1-ffb3-4a5e-85e8-ea22ce7d7b21",
+          "id": "71dab922-a336-4766-94f6-41e4454c0b7d",
           "field": "duration",
           "verdict": "not_addressed",
           "prescribedValue": "Continue indefinitely",
@@ -757,10 +776,11 @@
           "explanation": "The monograph states no numeric duration limit.",
           "decidedBy": "deterministic",
           "confidence": "low",
+          "reason": "not_constrained",
           "citation": null
         },
         {
-          "id": "9e79a665-0fbb-4e01-b1ab-19388347a8f6",
+          "id": "ef05ae72-72a2-492d-8de5-fc43dee307a4",
           "field": "indication",
           "verdict": "consistent",
           "prescribedValue": "Hyperlipidemia",
@@ -768,6 +788,7 @@
           "explanation": "Elevated LDL is within the monograph indication.",
           "decidedBy": "llm",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "22ef1214-dbb7-4c9d-b5fa-d58d7c89af57",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -782,8 +803,8 @@
       ]
     },
     {
-      "id": "c08c81d0-015c-417c-a75f-faff4c1ea74f",
-      "medicationId": "4909afdb-2fb1-4e7c-a814-d160a1a0439f",
+      "id": "55f93222-a2aa-4393-898a-f220235897b7",
+      "medicationId": "fead263d-cb9b-424e-981a-e2867b427c73",
       "drugName": "Etrazolam",
       "status": "contradicted",
       "monographName": "Etrazolam",
@@ -792,7 +813,7 @@
       "coverageCitation": null,
       "findings": [
         {
-          "id": "3f347143-e598-4dd4-aab9-a58966af6a9c",
+          "id": "1742fa72-0388-412e-9e6a-b2027684df55",
           "field": "dose",
           "verdict": "consistent",
           "prescribedValue": "0.5 mg",
@@ -800,6 +821,7 @@
           "explanation": "Dose matches the monograph standard adult dose of 0.5 mg.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -812,7 +834,7 @@
           }
         },
         {
-          "id": "5233df87-884b-4924-a81b-668b52d1508a",
+          "id": "4635115e-838a-44a8-a575-8ede37eac57e",
           "field": "unit",
           "verdict": "consistent",
           "prescribedValue": "mg",
@@ -820,6 +842,7 @@
           "explanation": "Dose unit (mg) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -832,7 +855,7 @@
           }
         },
         {
-          "id": "03279499-26b1-47ee-893a-e539b5e960d9",
+          "id": "9ac7495b-8c51-4b79-b5cc-3a6e3751a683",
           "field": "route",
           "verdict": "consistent",
           "prescribedValue": "oral",
@@ -840,6 +863,7 @@
           "explanation": "Route (oral) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -852,7 +876,7 @@
           }
         },
         {
-          "id": "822f533b-8da1-4c9d-8f82-e9660b81e551",
+          "id": "968c9e8f-00b9-461b-85cd-169f880ab959",
           "field": "frequency",
           "verdict": "consistent",
           "prescribedValue": "PO twice daily",
@@ -860,6 +884,7 @@
           "explanation": "Frequency (twice daily) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "774e13bc-8b50-43b4-a29f-c7efd39c952b",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -872,7 +897,7 @@
           }
         },
         {
-          "id": "a0b6a2e1-1406-4ad2-9205-c0c991f87359",
+          "id": "166bd562-339b-4e2b-aa9b-5cd8df11bf6b",
           "field": "timing",
           "verdict": "not_addressed",
           "prescribedValue": null,
@@ -880,10 +905,11 @@
           "explanation": "The monograph does not specify administration timing.",
           "decidedBy": "deterministic",
           "confidence": "medium",
+          "reason": "not_constrained",
           "citation": null
         },
         {
-          "id": "666831fc-ed89-4418-8915-cf7fcf6ab244",
+          "id": "8c4783ce-46dd-4a7f-8282-60f0a82ebea9",
           "field": "duration",
           "verdict": "conflict",
           "prescribedValue": "8 weeks",
@@ -891,6 +917,7 @@
           "explanation": "Intended duration of 8 weeks exceeds the monograph's 4-week limit.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "c6954abc-6534-4973-87a8-75f1fc6ea7b8",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -903,7 +930,7 @@
           }
         },
         {
-          "id": "26388476-68e2-4eea-8815-5caba884267a",
+          "id": "e9476076-7df4-48de-ac97-574a4f9b4e55",
           "field": "indication",
           "verdict": "consistent",
           "prescribedValue": "Acute anxiety, sleep disturbance",
@@ -911,6 +938,7 @@
           "explanation": "Situational anxiety with sleep disturbance matches the indication.",
           "decidedBy": "llm",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "45bbceda-081f-47a0-832a-81ba812d651b",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -925,8 +953,8 @@
       ]
     },
     {
-      "id": "9c57b911-182a-4af0-8075-64711941e422",
-      "medicationId": "4a776e0f-45f8-4c35-a9cd-31ce3eca790f",
+      "id": "0ce44753-07a3-43d4-83fc-45be02dc5e96",
+      "medicationId": "ae588211-3699-4156-b17c-8e70cb6d718e",
       "drugName": "Pranixol",
       "status": "unsupported",
       "monographName": null,
@@ -944,7 +972,7 @@
       },
       "findings": [
         {
-          "id": "69799fe9-1edd-43fb-ba7a-61e502d86f88",
+          "id": "d7440d87-f3f8-40df-85d6-2ba361f80535",
           "field": "identity",
           "verdict": "not_addressed",
           "prescribedValue": "Pranixol",
@@ -952,6 +980,7 @@
           "explanation": "No supporting passage exists: the reference has no monograph for Pranixol. Its coverage note says prescribing parameters for unlisted medications must not be inferred from other entries.",
           "decidedBy": "deterministic",
           "confidence": "high",
+          "reason": "not_constrained",
           "citation": {
             "chunkId": "48b30a14-5f1f-49bd-b0ff-c087840884c2",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -966,8 +995,8 @@
       ]
     },
     {
-      "id": "8e88cbe5-a147-4841-9028-3d885837b127",
-      "medicationId": "fbc24288-af50-4794-8149-e1781bd87510",
+      "id": "514a5ce7-4c2b-479d-b0d6-ae0e48f0179e",
+      "medicationId": "48758226-8243-46f4-b0f5-237dbac517e0",
       "drugName": "Quintaxin",
       "status": "supported",
       "monographName": "Quintaxin",
@@ -976,7 +1005,7 @@
       "coverageCitation": null,
       "findings": [
         {
-          "id": "ec55b2f9-7648-4e34-ae08-1cf2509b7115",
+          "id": "d640f22c-d0ee-40e0-9c95-bfa9518de0cc",
           "field": "dose",
           "verdict": "consistent",
           "prescribedValue": "20 mg",
@@ -984,6 +1013,7 @@
           "explanation": "Dose matches the monograph standard adult dose of 20 mg.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -996,7 +1026,7 @@
           }
         },
         {
-          "id": "da8e6b75-f23a-4145-a711-db42ecbe3c65",
+          "id": "488fcb74-de78-4b0d-85b0-2a5f8961ff2e",
           "field": "unit",
           "verdict": "consistent",
           "prescribedValue": "mg",
@@ -1004,6 +1034,7 @@
           "explanation": "Dose unit (mg) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -1016,7 +1047,7 @@
           }
         },
         {
-          "id": "cc4970b3-d7e4-4bc2-936a-d2487e920a75",
+          "id": "ff659311-5446-48e4-b471-49e7ebb142a5",
           "field": "route",
           "verdict": "consistent",
           "prescribedValue": "oral",
@@ -1024,6 +1055,7 @@
           "explanation": "Route (oral) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -1036,7 +1068,7 @@
           }
         },
         {
-          "id": "5329edb3-18ad-457f-b8af-78b13eb32bce",
+          "id": "f9dfbf42-61c3-4ef9-9149-16bd93bd6ddc",
           "field": "frequency",
           "verdict": "consistent",
           "prescribedValue": "PO once daily, before breakfast",
@@ -1044,6 +1076,7 @@
           "explanation": "Frequency (once daily) matches the monograph.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -1056,7 +1089,7 @@
           }
         },
         {
-          "id": "c308cbbb-7f4b-41a7-87ac-0f4a4f4e2d8d",
+          "id": "efe9f610-0ba9-40ab-b96e-adff82f419c1",
           "field": "timing",
           "verdict": "consistent",
           "prescribedValue": "before breakfast",
@@ -1064,6 +1097,7 @@
           "explanation": "Timing (before breakfast) is consistent with the monograph (before breakfast).",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "2812c0c1-835a-490b-96d1-41dead653339",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -1076,7 +1110,7 @@
           }
         },
         {
-          "id": "87a602e2-8c58-4a73-ae31-c19c42de53c9",
+          "id": "9357b47a-568a-44b5-97fe-fd6451cad965",
           "field": "duration",
           "verdict": "consistent",
           "prescribedValue": "8 weeks, reassess",
@@ -1084,6 +1118,7 @@
           "explanation": "Planned course (\"8 weeks, reassess\") is consistent with the monograph's reassessment at 8 weeks.",
           "decidedBy": "both",
           "confidence": "high",
+          "reason": null,
           "citation": {
             "chunkId": "d55128f5-b4b2-469a-8a3e-79aaee996cfb",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",
@@ -1096,7 +1131,7 @@
           }
         },
         {
-          "id": "883d611f-ba70-4f44-a71c-784c404e9979",
+          "id": "f66aaa72-9d2c-4967-b348-5046e7b03b95",
           "field": "indication",
           "verdict": "consistent",
           "prescribedValue": "GERD prophylaxis",
@@ -1104,6 +1139,7 @@
           "explanation": "GERD prophylaxis on a multi-drug regimen matches.",
           "decidedBy": "llm",
           "confidence": "medium",
+          "reason": null,
           "citation": {
             "chunkId": "621a1928-0320-41b3-87b3-1d377129ad28",
             "referenceId": "c19a7c53-11b8-4774-a0ab-da83a28b5c4d",

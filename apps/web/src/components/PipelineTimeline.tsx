@@ -1,4 +1,4 @@
-import { STAGE_LABELS, type JobDto } from '@mediverify/shared';
+import { STAGE_LABELS, type JobDto } from '@mediverify/shared/client';
 import { Radio, WifiOff } from 'lucide-react';
 
 import type { ProgressNote, StreamState } from '../lib/useJobStream';

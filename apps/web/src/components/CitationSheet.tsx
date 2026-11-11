@@ -1,42 +1,20 @@
-import type { CitationDto } from '@mediverify/shared';
+import type { CitationDto } from '@mediverify/shared/client';
 import { useQuery } from '@tanstack/react-query';
 import { BookOpen, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 
 import { api } from '../lib/api';
-import { normalizeText } from '../lib/utils';
+import { highlightRanges } from '../lib/highlight';
 
 import { PdfViewer } from './LazyPdfViewer';
 import { Alert, Badge, Button, Skeleton } from './ui/primitives';
 import { Sheet } from './ui/sheet';
 
-/** Render chunk text with the cited quote emphasised (case/space-insensitive match). */
+/** Render chunk text with the cited quote emphasised (same matcher as the PDF viewer). */
 function HighlightedText({ text, quote }: { text: string; quote: string }) {
-  const nt = normalizeText(text);
-  const nq = normalizeText(quote);
-  const idx = nq ? nt.indexOf(nq) : -1;
-  if (idx < 0) return <p className="whitespace-pre-wrap">{text}</p>;
-  // Map normalized offsets back to original text by walking characters (whitespace-collapse aware).
-  let o = 0;
-  let n = 0;
-  let start = -1;
-  let end = text.length;
-  const norm = (c: string) => normalizeText(c) || ' ';
-  while (o < text.length) {
-    if (n === idx && start < 0) start = o;
-    if (n === idx + nq.length) {
-      end = o;
-      break;
-    }
-    const isSpace = /\s/.test(text[o]!);
-    if (isSpace && o > 0 && /\s/.test(text[o - 1]!)) {
-      o++;
-      continue;
-    }
-    n += norm(text[o]!).length;
-    o++;
-  }
-  if (start < 0) return <p className="whitespace-pre-wrap">{text}</p>;
+  const range = highlightRanges([text], [quote]).get(0)?.[0];
+  if (!range) return <p className="whitespace-pre-wrap">{text}</p>;
+  const [start, end] = range;
   return (
     <p className="whitespace-pre-wrap">
       {text.slice(0, start)}
@@ -59,8 +37,9 @@ export function CitationSheet({
   const [page, setPage] = useState(1);
   const q = useQuery({
     queryKey: ['chunk', citation?.referenceId, citation?.chunkId],
-    queryFn: () => api.chunk(citation!.referenceId, citation!.chunkId),
-    enabled: Boolean(citation),
+    queryFn: () => api.chunk(citation!.referenceId, citation!.chunkId!),
+    // A citation from before a re-index has no live chunk; the stored snapshot is shown instead.
+    enabled: Boolean(citation?.chunkId),
     staleTime: Infinity,
   });
 
@@ -134,6 +113,12 @@ export function CitationSheet({
                 </Alert>
               )}
               {q.data && <HighlightedText text={q.data.text} quote={citation.quote} />}
+              {!citation.chunkId && (
+                <p className="text-slate-600">
+                  This passage is no longer in the current reference index (it was re-indexed after
+                  this verification). The quote above was validated when the result was produced.
+                </p>
+              )}
             </div>
           </div>
           <Button

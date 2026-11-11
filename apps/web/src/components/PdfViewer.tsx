@@ -1,11 +1,19 @@
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 
-import { ChevronLeft, ChevronRight, ExternalLink, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Highlighter,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 
-import { normalizeText } from '../lib/utils';
+import { highlightRanges } from '../lib/highlight';
 
 import { Alert, Button, Skeleton } from './ui/primitives';
 
@@ -22,8 +30,8 @@ function escapeHtml(s: string) {
 }
 
 /**
- * PDF viewer with page navigation, zoom and quote highlighting: any text-layer run that is part of
- * one of the highlight quotes is wrapped in <mark> (used for citation deep links).
+ * PDF viewer with page navigation, zoom and exact quote highlighting (citation deep links).
+ * `onClearHighlights` adds a "Clear highlight" control.
  */
 export function PdfViewer({
   url,
@@ -31,12 +39,14 @@ export function PdfViewer({
   onPageChange,
   highlights = [],
   title,
+  onClearHighlights,
 }: {
   url: string;
   page: number;
   onPageChange: (p: number) => void;
   highlights?: string[];
   title: string;
+  onClearHighlights?: (() => void) | undefined;
 }) {
   const [numPages, setNumPages] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,45 +64,38 @@ export function PdfViewer({
     return () => ro.disconnect();
   }, []);
 
-  // Highlight matching: a text run is marked if it contains a quote verbatim (only that span is
-  // wrapped) or shares a run of ≥5 consecutive words with a quote (multi-line quotes span runs).
-  const needles = useMemo(
-    () =>
-      highlights
-        .map(normalizeText)
-        .filter((h) => h.length > 3)
-        .map((q) => {
-          const words = q.split(' ');
-          const shingles = new Set<string>();
-          for (let i = 0; i + 5 <= words.length; i++) shingles.add(words.slice(i, i + 5).join(' '));
-          return { q, shingles };
-        }),
-    [highlights],
+  // Exact quote highlighting: the page's text items are matched as a whole (see lib/highlight.ts)
+  // and only the quoted characters are wrapped in <mark>.
+  const [items, setItems] = useState<string[] | null>(null);
+  const ranges = useMemo(
+    () => (items ? highlightRanges(items, highlights) : new Map<number, [number, number][]>()),
+    [items, highlights],
   );
   const renderText = useCallback(
-    ({ str }: { str: string }) => {
-      const n = normalizeText(str);
-      for (const { q, shingles } of needles) {
-        const lower = str.toLowerCase();
-        const idx = lower.indexOf(q);
-        if (idx >= 0) {
-          return `${escapeHtml(str.slice(0, idx))}<mark>${escapeHtml(str.slice(idx, idx + q.length))}</mark>${escapeHtml(str.slice(idx + q.length))}`;
-        }
-        const words = n.split(' ');
-        for (let i = 0; i + 5 <= words.length; i++) {
-          if (shingles.has(words.slice(i, i + 5).join(' ')))
-            return `<mark>${escapeHtml(str)}</mark>`;
-        }
-        if (words.length >= 3 && words.length < 5 && q.includes(n))
-          return `<mark>${escapeHtml(str)}</mark>`;
+    ({ str, itemIndex }: { str: string; itemIndex: number }) => {
+      const marks = ranges.get(itemIndex);
+      if (!marks) return escapeHtml(str);
+      let html = '';
+      let at = 0;
+      for (const [a, b] of marks) {
+        html += `${escapeHtml(str.slice(at, a))}<mark>${escapeHtml(str.slice(a, b))}</mark>`;
+        at = b;
       }
-      return escapeHtml(str);
+      return html + escapeHtml(str.slice(at));
     },
-    [needles],
+    [ranges],
   );
+  // Scroll to the highlight once per new citation, not on every re-render (zoom, paging).
+  const scrolledFor = useRef<string | null>(null);
+  const highlightKey = `${page}:${highlights.join('|')}`;
   const scrollToMark = useCallback(() => {
-    box.current?.querySelector('mark')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  }, []);
+    if (scrolledFor.current === highlightKey) return;
+    const mark = box.current?.querySelector('mark');
+    if (!mark) return;
+    scrolledFor.current = highlightKey;
+    mark.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [highlightKey]);
+  const notFound = Boolean(items) && highlights.length > 0 && ranges.size === 0;
 
   const file = useMemo(() => ({ url, withCredentials: true }), [url]);
   const go = (p: number) => onPageChange(Math.min(Math.max(1, p), numPages ?? 1));
@@ -151,6 +154,22 @@ export function PdfViewer({
           </Button>
         </div>
       </div>
+      {highlights.length > 0 && (onClearHighlights || notFound) && (
+        <div
+          className="flex items-center justify-between gap-2 border-b border-slate-200 bg-yellow-50 px-3 py-1.5 text-xs text-slate-700"
+          role="status"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Highlighter className="h-3.5 w-3.5" aria-hidden />
+            {notFound ? 'The quote was not found on this page.' : 'Showing the cited quote.'}
+          </span>
+          {onClearHighlights && (
+            <Button variant="ghost" size="sm" className="h-6 px-2" onClick={onClearHighlights}>
+              <X className="h-3.5 w-3.5" aria-hidden /> Clear highlight
+            </Button>
+          )}
+        </div>
+      )}
       {/* Focusable so keyboard users can scroll the page image with the arrow keys (WCAG 2.1.1;
           axe scrollable-region-focusable). */}
       <div
@@ -179,6 +198,9 @@ export function PdfViewer({
               pageNumber={page}
               width={Math.round(width * zoom)}
               customTextRenderer={renderText}
+              onGetTextSuccess={({ items: t }) =>
+                setItems(t.map((it) => ('str' in it ? it.str : '')))
+              }
               onRenderTextLayerSuccess={scrollToMark}
               className="mx-auto shadow"
               loading={<Skeleton className="mx-auto h-[70vh] w-full max-w-3xl" />}

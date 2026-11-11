@@ -1,24 +1,32 @@
-import { isTerminalJobStatus } from '@mediverify/shared';
+import { isTerminalJobStatus } from '@mediverify/shared/client';
 import * as Tabs from '@radix-ui/react-tabs';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, FileText, RotateCcw } from 'lucide-react';
+import { ArrowLeft, FileText, RotateCcw, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 
 import { PdfViewer } from '../components/LazyPdfViewer';
 import { PipelineTimeline } from '../components/PipelineTimeline';
 import { ResultsView } from '../components/results/ResultsView';
 import { DocumentPageSkeleton, ResultsSkeleton } from '../components/skeletons';
 import { JobStatusBadge } from '../components/status';
+import { ConfirmDialog } from '../components/ui/confirm-dialog';
 import { Alert, Button, Card, Skeleton, Spinner } from '../components/ui/primitives';
 import { TAB_ITEM, TabIndicator, useTabIndicator } from '../components/ui/tab-indicator';
 import { ApiRequestError } from '../lib/api';
 import { jobFailureMessage } from '../lib/messages';
-import { qk, useDocument, useJob, useResults, useRetryJob } from '../lib/queries';
+import {
+  qk,
+  useDeleteDocument,
+  useDocument,
+  useJob,
+  useResults,
+  useRetryJob,
+} from '../lib/queries';
 import { notify } from '../lib/toast';
 import { useJobStream } from '../lib/useJobStream';
 import { usePageTitle } from '../lib/usePageTitle';
-import { formatDuration } from '../lib/utils';
+import { formatDuration, formatUsage } from '../lib/utils';
 
 type Pane = 'results' | 'document';
 
@@ -35,6 +43,9 @@ export function DocumentPage() {
   const failed = job.data?.status === 'failed';
   const results = useResults(jobId, Boolean(job.data && isTerminalJobStatus(job.data.status)));
   const retry = useRetryJob();
+  const remove = useDeleteDocument();
+  const navigate = useNavigate();
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [page, setPage] = useState(1);
   const [highlights, setHighlights] = useState<string[]>([]);
   const [pane, setPane] = useState<Pane>('results');
@@ -67,8 +78,18 @@ export function DocumentPage() {
   const onRetry = () => {
     if (!jobId) return;
     retry.mutate(jobId, {
-      onSuccess: () => {
+      onSuccess: (r) => {
         notify.success('Retry queued');
+        // Point the page at the new job at once, so Retry can't be clicked twice for the old one.
+        qc.setQueryData(qk.document(id), {
+          ...d,
+          latestJob: {
+            id: r.jobId,
+            status: 'queued' as const,
+            currentStage: null,
+            errorMessage: null,
+          },
+        });
         void qc.invalidateQueries({ queryKey: qk.document(id) });
       },
       onError: (e) => notify.error(e.message),
@@ -100,8 +121,34 @@ export function DocumentPage() {
               Retry
             </Button>
           )}
+          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(true)}>
+            <Trash2 className="h-4 w-4" aria-hidden />
+            Delete
+          </Button>
         </div>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        icon={<Trash2 className="h-4 w-4" />}
+        title="Delete this document?"
+        description={`"${d.filename}", its processing history and all verification results will be permanently deleted. This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        busy={remove.isPending}
+        onConfirm={() =>
+          remove.mutate(id, {
+            onSuccess: () => {
+              notify.success('Document deleted');
+              void navigate('/documents');
+            },
+            onError: (e) => {
+              setConfirmDelete(false);
+              notify.error(e.message);
+            },
+          })
+        }
+      />
 
       {job.isLoading && <Skeleton className="h-10 w-full rounded-xl" />}
       {job.isError && (
@@ -122,6 +169,7 @@ export function DocumentPage() {
           <summary className="cursor-pointer select-none text-slate-700">
             Pipeline completed — {job.data.stages.length}/{job.data.stages.length} stages in{' '}
             {formatDuration(totalMs)}
+            {formatUsage(job.data.llmUsage, job.data.llmProvider)}
           </summary>
           <div className="py-3">
             <PipelineTimeline job={job.data} stream={state} notes={notes} compact />
@@ -159,6 +207,7 @@ export function DocumentPage() {
                   onPageChange={setPage}
                   highlights={highlights}
                   title={d.filename}
+                  onClearHighlights={() => setHighlights([])}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center p-6 text-center text-sm text-slate-600">

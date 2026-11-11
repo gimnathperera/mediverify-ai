@@ -16,6 +16,7 @@ import type { MonographRules } from '../rules/monograph-rules.js';
 import { extractCriticalPoints } from '../tasks/critical-points.js';
 import { extractMedications } from '../tasks/entities.js';
 import { generateSummary } from '../tasks/summary.js';
+import { retrieveEvidence } from '../verification/retrieval.js';
 import {
   retrievalQuery,
   verifyMedication,
@@ -31,6 +32,9 @@ export interface PipelineConfig {
   /** Medications verified in parallel (each makes one model call). Default 3. */
   verifyConcurrency?: number | undefined;
   sofficeBin?: string | undefined;
+  /** Input limits checked after parsing (DOCUMENT_TOO_LARGE); 0 or undefined = no limit. */
+  maxDocumentPages?: number | undefined;
+  maxDocumentChars?: number | undefined;
 }
 
 export interface PipelineDeps {
@@ -43,7 +47,10 @@ export interface PipelineDeps {
 export interface JobContext {
   jobId: string;
   documentId: string;
+  /** Scoped to the running stage by the runner. */
   log: Logger;
+  /** Aborted when the running stage times out; long work should stop when it fires. */
+  signal?: AbortSignal | undefined;
   /** Persist + broadcast a progress event for the running stage. */
   progress(message: string, data?: Record<string, unknown>): Promise<void>;
 }
@@ -98,7 +105,10 @@ export class JobState {
       throw new StageError('UNSUPPORTED_DOCUMENT', 'File is neither a PDF nor a DOCX document');
     if (doc.preview_pdf) return { bytes: doc.preview_pdf, converted: null };
     try {
-      const converted = await convertDocxToPdf(doc.bytes, { binary: this.deps.config.sofficeBin });
+      const converted = await convertDocxToPdf(doc.bytes, {
+        binary: this.deps.config.sofficeBin,
+        signal: this.ctx.signal,
+      });
       return { bytes: converted, converted };
     } catch (err) {
       this.ctx.log.error(
@@ -130,6 +140,24 @@ export class JobState {
 
 type StageFn = (deps: PipelineDeps, state: JobState) => Promise<StageResult>;
 
+/**
+ * Refuse documents that would make every model prompt huge (and costly) before any model call.
+ * The provider also refuses any single prompt above LLM_MAX_PROMPT_TOKENS.
+ */
+export function assertWithinLimits(doc: ParsedDocument, config: PipelineConfig) {
+  const chars = doc.pages.reduce((n, p) => n + p.text.length, 0);
+  if (config.maxDocumentPages && doc.pageCount > config.maxDocumentPages)
+    throw new StageError(
+      'DOCUMENT_TOO_LARGE',
+      `The document has ${doc.pageCount} pages; the limit is ${config.maxDocumentPages}.`,
+    );
+  if (config.maxDocumentChars && chars > config.maxDocumentChars)
+    throw new StageError(
+      'DOCUMENT_TOO_LARGE',
+      `The document has ${chars} characters of text; the limit is ${config.maxDocumentChars}.`,
+    );
+}
+
 const parsed: StageFn = async (_deps, state) => {
   const { bytes, converted } = await state.pdfBytes();
   if (converted) await state.ctx.progress('Converted DOCX to PDF for parsing and preview');
@@ -142,6 +170,7 @@ const parsed: StageFn = async (_deps, state) => {
       `Could not parse the document: ${(err as Error).message}`.slice(0, 300),
     );
   }
+  assertWithinLimits(doc, _deps.config);
   state.setParsed(doc);
   const tables = doc.blocks.filter((b) => b.kind === 'table');
   const rows = tables.reduce((n, t) => n + (t.table?.rows.length ?? 0), 0);
@@ -296,79 +325,117 @@ const verified: StageFn = async (deps, state) => {
   });
   const meds = await resultsRepo.getMedications(pool, state.ctx.jobId);
   const prefix = await state.fixturePrefix;
+  const primaryText = (await state.parsed()).pages.map((p) => p.text).join('\n');
   const counts: Record<string, number> = {};
   // Medications are independent: verify a few at once (bounded, so the model provider's rate limits
   // and the DB pool are respected). Results keep table order.
-  const results = await mapWithConcurrency(meds, config.verifyConcurrency ?? 3, async (med) => {
-    const out = await verifyMedication(
-      med,
-      monographs,
-      {
-        llm: deps.llm,
-        coverageChunk: cov ? toChunk(cov) : null,
-        minScore: config.retrievalMinScore,
-        referenceTitle: `${ref.title} (rev. ${ref.version_label})`,
-        monographChunks: async (id) =>
-          (await referencesRepo.getChunksForMonograph(pool, id)).map(toChunk),
-        retrieve: async (id, query) => {
-          const qv = await embedder.embedQuery(query);
-          const rows = await referencesRepo.searchMonographChunks(
-            pool,
-            id,
-            qv,
-            query,
-            config.retrievalTopK,
-          );
-          return rows.map((r) => ({
-            ...toChunk(r),
-            score: 0.7 * r.vector_score + 0.3 * Math.min(r.text_score * 10, 1),
-          }));
+  const outcomes = await mapWithConcurrency(
+    meds,
+    config.verifyConcurrency ?? 3,
+    async (med) => {
+      let out: Awaited<ReturnType<typeof verifyMedication>>;
+      try {
+        out = await verifyMedication(
+          med,
+          monographs,
+          {
+            llm: deps.llm,
+            primaryText,
+            coverageChunk: cov ? toChunk(cov) : null,
+            minScore: config.retrievalMinScore,
+            referenceTitle: `${ref.title} (rev. ${ref.version_label})`,
+            monographChunks: async (id) =>
+              (await referencesRepo.getChunksForMonograph(pool, id)).map(toChunk),
+            retrieve: (id, m) =>
+              retrieveEvidence({
+                med: m,
+                topK: config.retrievalTopK,
+                embed: (text) => embedder.embedQuery(text),
+                rank: async (embedding, text) =>
+                  (await referencesRepo.rankMonographFieldChunks(pool, id, embedding, text)).map(
+                    (r) => ({
+                      ...toChunk(r),
+                      vectorScore: r.vector_score,
+                      textScore: r.text_score,
+                    }),
+                  ),
+              }),
+            primaryContext: async (m) => {
+              const qv = await embedder.embedQuery(retrievalQuery(m));
+              const rows = await resultsRepo.searchDocumentChunksByName(
+                pool,
+                state.ctx.jobId,
+                m.drugName,
+                qv,
+                3,
+              );
+              return rows.map((r) => `[page ${r.page_start}] ${r.text}`);
+            },
+          },
+          `${prefix}/verify--${med.drugNameNormalized}`,
+        );
+      } catch (err) {
+        // One medication's failure must not discard the others (rule 3: failures are `incomplete`).
+        return { ok: false as const, med, error: err as Error };
+      }
+      counts[out.status] = (counts[out.status] ?? 0) + 1;
+      state.ctx.log.info(
+        {
+          event: 'verification.result',
+          medication: med.drugName,
+          status: out.status,
+          // identity gate
+          identity_match: out.identity.match,
+          monograph: out.identity.monographName,
+          similar_not_matched: out.similarNames,
+          // retrieval (ids/fields/scores only — never passage text)
+          retrieved: out.retrieval.chunks.length,
+          dropped_below_threshold: out.retrieval.droppedBelowThreshold,
+          top_passages: out.retrieval.chunks
+            .slice(0, 3)
+            .map((c) => ({ chunk_id: c.id, field: c.field, score: c.score })),
+          // verification
+          conflicts: out.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field),
+          decided_by: out.findings.reduce<Record<string, number>>((acc, f) => {
+            acc[f.decidedBy] = (acc[f.decidedBy] ?? 0) + 1;
+            return acc;
+          }, {}),
+          invalid_quotes: out.findings.filter((f) => f.quote && !f.quoteValid).length,
         },
-        primaryContext: async (m) => {
-          const qv = await embedder.embedQuery(retrievalQuery(m));
-          const rows = await resultsRepo.searchDocumentChunksByName(
-            pool,
-            state.ctx.jobId,
-            m.drugName,
-            qv,
-            3,
-          );
-          return rows.map((r) => `[page ${r.page_start}] ${r.text}`);
-        },
-      },
-      `${prefix}/verify--${med.drugNameNormalized}`,
-    );
-    counts[out.status] = (counts[out.status] ?? 0) + 1;
-    state.ctx.log.info(
-      {
-        event: 'verification.result',
+        'medication verified',
+      );
+      await state.ctx.progress(`${med.drugName}: ${out.status}`, {
         medication: med.drugName,
         status: out.status,
-        // identity gate
-        identity_match: out.identity.match,
-        monograph: out.identity.monographName,
-        similar_not_matched: out.similarNames,
-        // retrieval (ids/fields/scores only — never passage text)
-        retrieved: out.retrieval.chunks.length,
-        dropped_below_threshold: out.retrieval.droppedBelowThreshold,
-        top_passages: out.retrieval.chunks
-          .slice(0, 3)
-          .map((c) => ({ chunk_id: c.id, field: c.field, score: c.score })),
-        // verification
-        conflicts: out.findings.filter((f) => f.verdict === 'conflict').map((f) => f.field),
-        decided_by: out.findings.reduce<Record<string, number>>((acc, f) => {
-          acc[f.decidedBy] = (acc[f.decidedBy] ?? 0) + 1;
-          return acc;
-        }, {}),
-        invalid_quotes: out.findings.filter((f) => f.quote && !f.quoteValid).length,
-      },
-      'medication verified',
+      });
+      return {
+        ok: true as const,
+        value: { medicationId: med.id, ...out } satisfies resultsRepo.VerificationInput,
+      };
+    },
+    state.ctx.signal,
+  );
+  // If every medication failed (e.g. the model is down), fail the stage so the job retries.
+  const firstFailure = outcomes.find((o) => !o.ok);
+  if (firstFailure && outcomes.every((o) => !o.ok)) throw firstFailure.error;
+  const results = outcomes.map((o): resultsRepo.VerificationInput => {
+    if (o.ok) return o.value;
+    const code = (o.error as { code?: string }).code ?? 'INTERNAL';
+    counts.incomplete = (counts.incomplete ?? 0) + 1;
+    state.ctx.log.warn(
+      { event: 'verification.failed', medication: o.med.drugName, error_code: code },
+      'medication verification failed; recorded as incomplete',
     );
-    await state.ctx.progress(`${med.drugName}: ${out.status}`, {
-      medication: med.drugName,
-      status: out.status,
-    });
-    return { medicationId: med.id, ...out } satisfies resultsRepo.VerificationInput;
+    return {
+      medicationId: o.med.id,
+      status: 'incomplete',
+      monographId: null,
+      summary: `Verification could not be completed (${code}). Left unclassified rather than guessed; retry the job to re-verify.`,
+      similarNames: [],
+      coverageChunkId: null,
+      retrieval: { error: code },
+      findings: [],
+    };
   });
   return {
     detail:

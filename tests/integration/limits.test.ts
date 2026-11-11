@@ -74,4 +74,43 @@ describe('deployment limits', () => {
     // The budget is per user: someone else is unaffected.
     await upload(await seededAgent(), uniquePdf()).expect(202);
   });
+
+  it('caps pipeline runs across all users (app-wide daily budget)', async () => {
+    const { rows } = await pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM jobs WHERE created_at > now() - interval '24 hours'",
+    );
+    const g = await startApp(pool, {
+      DAILY_JOB_LIMIT: '0',
+      GLOBAL_DAILY_JOB_LIMIT: String(rows[0]!.n + 1),
+    });
+    try {
+      const agent = request.agent(g.app.getHttpServer());
+      const email = `global-${Date.now()}@test.local`;
+      await usersRepo.createUser(pool, email, await hash('Sup3r-secret!'));
+      await agent.post('/api/auth/login').send({ email, password: 'Sup3r-secret!' }).expect(200);
+      const send = (bytes: Buffer) =>
+        agent.post('/api/documents').field('referenceId', refId).attach('file', bytes, 'd.pdf');
+      await send(uniquePdf()).expect(202);
+      const over = await send(uniquePdf()).expect(429);
+      expect(over.body.error).toMatchObject({
+        code: 'QUOTA_EXCEEDED',
+        details: { scope: 'global' },
+      });
+    } finally {
+      await g.app.close();
+    }
+  });
+
+  it('defaults sign-up to off when a paid model key is configured', async () => {
+    const paid = await startApp(pool, {
+      LLM_PROVIDER: 'openai',
+      OPENAI_API_KEY: 'sk-test-not-used',
+    });
+    try {
+      const cfg = await request(paid.app.getHttpServer()).get('/api/config').expect(200);
+      expect(cfg.body).toMatchObject({ signupEnabled: false });
+    } finally {
+      await paid.app.close();
+    }
+  });
 });
