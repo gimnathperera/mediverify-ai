@@ -1,6 +1,8 @@
 # syntax=docker/dockerfile:1.7
 FROM node:24-bookworm-slim AS build
-ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+# The root manifest's dev deps pull in @mediverify/core, so onnxruntime-node installs here too.
+# Skip its optional CUDA download (CPU-only embeddings; the 1.21.0 GPU asset 404s).
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true ONNXRUNTIME_NODE_INSTALL_CUDA=skip
 RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

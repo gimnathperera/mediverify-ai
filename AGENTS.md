@@ -97,7 +97,7 @@ pnpm run ci                            # format:check + lint + typecheck + unit 
   `docs/evaluation.md`; never quote live results that were produced in fixture mode.
 - `pnpm typecheck` = every package + root `tsconfig.json` (scripts/tests). Host scripts load `.env` via
   `tsx --env-file-if-exists`; `pnpm eval` forces the fixture LLM regardless of `.env`.
-- `pnpm install` on linux/x64 needs `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (set in CI and `docker/node.Dockerfile`):
+- `pnpm install` on linux/x64 needs `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` (set in CI and both Dockerfiles):
   onnxruntime-node's postinstall otherwise downloads optional CUDA binaries, and the 1.21.0 asset 404s.
 - `LocalEmbeddingProvider` retries the first model download and never caches a failed load.
 - OpenAI 429 `insufficient_quota` → `MODEL_QUOTA_EXCEEDED` (non-retryable); other 429/5xx/network errors are retried.
