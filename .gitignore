@@ -11,3 +11,4 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 .llm-recordings/
+.claude/settings.local.json

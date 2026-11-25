@@ -27,7 +27,7 @@ Living checklist. Status: ☐ todo · ◐ in progress · ☑ done (verified by a
 | EXTRA  | Duplicate upload detection (sha256, 5-min window)                                       | ☑      | `api.test.ts` duplicate test                                                                                                |
 | EXTRA  | Deep-link citation into reference PDF                                                   | ☑      | Browser check: opens p.5 with the exact quote highlighted                                                                   |
 
-## Architecture (summary — see CLAUDE.md / README for detail)
+## Architecture (summary — see AGENTS.md / README for detail)
 
 pnpm monorepo: `apps/{web,api,worker}`, `packages/{shared,db,core}`, `db/migrations`. Postgres is queue + store + vector
 index. SSE backed by persisted `job_events` + LISTEN/NOTIFY. OpenAI for generation (strict JSON schema); local bge-small
@@ -55,7 +55,7 @@ embeddings. Deterministic verification checks + LLM interpretation, merged under
 
 ## Progress log
 
-- Day 1: documents analysed; plan approved; CLAUDE.md written; monorepo, tooling, CI, Compose, migrations, auth,
+- Day 1: documents analysed; plan approved; agent guide (now AGENTS.md) written; monorepo, tooling, CI, Compose, migrations, auth,
   atomic upload, queue/worker, PDF parser, chunking, embeddings, basic UI.
 - Day 2: LLM providers (OpenAI strict schema + fixture), deterministic monograph rules, summary, critical points,
   entities, identity gate, hybrid retrieval, verification merge, golden/negative/citation tests, `pnpm eval`.

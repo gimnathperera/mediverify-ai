@@ -265,6 +265,10 @@ scripts/dev/     developer helpers, run with `pnpm exec tsx --conditions=@medive
                  parse-probe <pdf> (parsed blocks), rules-probe (monograph rules), index-reference (re-index)
 ```
 
+AI coding agents: [`AGENTS.md`](AGENTS.md) is the shared guide (stack, commands, conventions and the verification
+rules that must not be weakened). `CLAUDE.md`, `.claude/` (settings, dev-server launch config, `/check` command,
+`verification-reviewer` subagent), `.github/copilot-instructions.md` and `.cursor/rules/` all point to it.
+
 ### Data model
 
 ```mermaid

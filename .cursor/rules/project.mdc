@@ -1,0 +1,9 @@
+---
+description: MediVerify AI project guidance
+alwaysApply: true
+---
+
+Follow `AGENTS.md` at the repository root. It is the single source of truth for this repo's stack, commands,
+conventions, architecture decisions and the RAG & verification rules, which must never be weakened.
+
+@AGENTS.md
