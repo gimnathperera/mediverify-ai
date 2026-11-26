@@ -2,7 +2,8 @@
 # Multi-stage image for the NestJS API (target: api) and the pipeline worker (target: worker).
 
 FROM node:24-bookworm-slim AS base
-ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+# Skip onnxruntime-node's optional CUDA download (CPU-only embeddings; the 1.21.0 GPU asset 404s).
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true ONNXRUNTIME_NODE_INSTALL_CUDA=skip
 RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
 WORKDIR /app
 

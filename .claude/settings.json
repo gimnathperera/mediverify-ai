@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm lint)",
+      "Bash(pnpm lint:fix)",
+      "Bash(pnpm format)",
+      "Bash(pnpm format:check)",
+      "Bash(pnpm typecheck)",
+      "Bash(pnpm test:unit)",
+      "Bash(pnpm test:unit *)",
+      "Bash(pnpm test:web)",
+      "Bash(pnpm test:web *)",
+      "Bash(pnpm test:integration)",
+      "Bash(pnpm test:integration *)",
+      "Bash(pnpm test:coverage)",
+      "Bash(pnpm size)",
+      "Bash(pnpm eval)",
+      "Bash(pnpm run ci)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ],
+    "deny": ["Read(./.env)", "Read(./.env.local)", "Read(./.env.production)"]
+  },
+  "enabledMcpjsonServers": ["playwright"]
+}
